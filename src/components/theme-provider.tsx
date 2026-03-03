@@ -15,7 +15,11 @@ export default function ThemeProvider({ children }: Props) {
     useEffect(() => {
         // 1. Get the current user, then load their personal theme from profiles
         supabase.auth.getUser().then(({ data: { user } }) => {
-            if (!user) return
+            if (!user) {
+                // No user logged in — always show the light emerald theme on public pages
+                applyTheme('emerald')
+                return
+            }
             supabase
                 .from('profiles')
                 .select('selected_theme')
