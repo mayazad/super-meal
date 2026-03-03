@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react'
 import { usePathname, useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Menu, X, LayoutDashboard, Users, Utensils, ShoppingCart, Zap, Wallet, Landmark, LogOut, ShieldCheck } from 'lucide-react'
+import { Menu, X, LayoutDashboard, Users, Utensils, ShoppingCart, Zap, Wallet, Landmark, LogOut, ShieldCheck, Calculator } from 'lucide-react'
 import { createClient } from '@/utils/supabase/client'
 
 const navItems = [
@@ -15,6 +15,7 @@ const navItems = [
     { name: 'Groceries', href: '/admin/groceries', icon: ShoppingCart },
     { name: 'Utility Deposits', href: '/admin/utility-deposits', icon: Landmark },
     { name: 'Utility Bills', href: '/admin/utilities', icon: Zap },
+    { name: 'Settlement', href: '/admin/settlement', icon: Calculator },
 ]
 
 type Props = {
