@@ -419,7 +419,7 @@ export default function AdminDashboardPage() {
                         className="h-9 w-9 flex items-center justify-center rounded-lg border hover:bg-muted transition-colors disabled:opacity-30 disabled:pointer-events-none" title="Next month">
                         <ChevronRight className="h-4 w-4" />
                     </button>
-                    <a href={`/summary/${selectedMonth}`} target="_blank" rel="noreferrer"
+                    <a href={messSlug ? `/view/${messSlug}/${selectedMonth}` : '#'} target="_blank" rel="noreferrer"
                         className="h-9 px-3 flex items-center gap-1.5 rounded-lg border bg-background text-sm font-medium hover:bg-muted transition-colors">
                         <ExternalLink className="h-3.5 w-3.5" /> View Report
                     </a>
