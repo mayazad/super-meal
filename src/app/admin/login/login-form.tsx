@@ -4,11 +4,12 @@ import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/utils/supabase/client'
 import { motion } from 'framer-motion'
-import { Loader2 } from 'lucide-react'
+import { Loader2, Eye, EyeOff } from 'lucide-react'
 
 export default function LoginForm() {
     const [email, setEmail] = useState('')
     const [password, setPassword] = useState('')
+    const [showPassword, setShowPassword] = useState(false)
     const [error, setError] = useState<string | null>(null)
     const [isLoading, setIsLoading] = useState(false)
 
@@ -20,26 +21,21 @@ export default function LoginForm() {
         setIsLoading(true)
         setError(null)
 
-        const { error } = await supabase.auth.signInWithPassword({
-            email,
-            password,
-        })
+        const { error } = await supabase.auth.signInWithPassword({ email, password })
 
         if (error) {
             setError(error.message)
             setIsLoading(false)
         } else {
-            // Check role from profiles for stealth routing
             const { data: { user } } = await supabase.auth.getUser()
             if (user) {
-                // Senpai is identified by exact email — invisible routing
-                if (user.email === 'mayaz@adnan.hossain') {
+                if (user.email === process.env.NEXT_PUBLIC_SENPAI_EMAIL) {
                     router.push('/senpai')
                 } else {
                     const { data: profile } = await supabase.from('profiles').select('role').eq('id', user.id).single()
                     const role = profile?.role
                     if (role === 'admin') router.push('/admin/dashboard')
-                    else router.push('/register/pending') // pending_admin
+                    else router.push('/register/pending')
                 }
                 router.refresh()
             }
@@ -55,20 +51,13 @@ export default function LoginForm() {
         >
             <div className="space-y-2 text-center">
                 <h1 className="text-3xl font-semibold tracking-tight">Admin Login</h1>
-                <p className="text-sm text-muted-foreground">
-                    Enter your credentials to manage the app
-                </p>
+                <p className="text-sm text-muted-foreground">Enter your credentials to manage the app</p>
             </div>
 
             <form onSubmit={handleLogin} className="space-y-6">
                 <div className="space-y-4">
                     <div className="space-y-2">
-                        <label
-                            htmlFor="email"
-                            className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
-                        >
-                            Email
-                        </label>
+                        <label htmlFor="email" className="text-sm font-medium leading-none">Email</label>
                         <input
                             id="email"
                             type="email"
@@ -76,29 +65,34 @@ export default function LoginForm() {
                             required
                             value={email}
                             onChange={(e) => setEmail(e.target.value)}
-                            className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                            className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 ring-offset-background"
                         />
                     </div>
                     <div className="space-y-2">
-                        <label
-                            htmlFor="password"
-                            className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
-                        >
-                            Password
-                        </label>
-                        <input
-                            id="password"
-                            type="password"
-                            required
-                            value={password}
-                            onChange={(e) => setPassword(e.target.value)}
-                            className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-                        />
+                        <label htmlFor="password" className="text-sm font-medium leading-none">Password</label>
+                        <div className="relative">
+                            <input
+                                id="password"
+                                type={showPassword ? 'text' : 'password'}
+                                required
+                                value={password}
+                                onChange={(e) => setPassword(e.target.value)}
+                                className="flex h-10 w-full rounded-md border border-input bg-background px-3 pr-10 py-2 text-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 ring-offset-background"
+                            />
+                            <button
+                                type="button"
+                                onClick={() => setShowPassword(v => !v)}
+                                className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
+                                aria-label={showPassword ? 'Hide password' : 'Show password'}
+                            >
+                                {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                            </button>
+                        </div>
                     </div>
                 </div>
 
                 {error && (
-                    <div className="rounded-md bg-destructive/15 p-3 text-sm text-destructive dark:bg-red-900/10 dark:text-red-500">
+                    <div className="rounded-md bg-destructive/15 p-3 text-sm text-destructive">
                         {error}
                     </div>
                 )}
@@ -106,18 +100,14 @@ export default function LoginForm() {
                 <button
                     type="submit"
                     disabled={isLoading}
-                    className="inline-flex h-10 w-full items-center justify-center rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground ring-offset-background transition-colors hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50"
+                    className="inline-flex h-10 w-full items-center justify-center rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50"
                 >
-                    {isLoading ? (
-                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    ) : (
-                        'Sign In'
-                    )}
+                    {isLoading ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Signing in…</> : 'Sign In'}
                 </button>
             </form>
 
             <div className="text-center text-sm text-muted-foreground mt-4">
-                Don't have an account? <a href="/register" className="underline hover:text-foreground">Create Workspace</a>
+                Don&apos;t have an account? <a href="/register" className="underline hover:text-foreground">Create Workspace</a>
             </div>
 
             <p className="text-center text-[11px] text-muted-foreground/50 tracking-wide mt-4">

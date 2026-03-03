@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { createClient } from '@/utils/supabase/client'
 import { useAdmin } from '@/hooks/use-admin'
-import { Calculator, Copy, Check, TrendingUp, TrendingDown, DollarSign, Utensils } from 'lucide-react'
+import { Calculator, Copy, Check, TrendingUp, TrendingDown, DollarSign, Utensils, Printer } from 'lucide-react'
 import { SkeletonPage } from '@/components/ui/skeleton'
 import { PageError } from '@/components/ui/page-error'
 
@@ -133,7 +133,7 @@ export default function SettlementPage() {
                     </h1>
                     <p className="text-muted-foreground text-sm mt-1">Per-member meal balance for the selected month.</p>
                 </div>
-                <div className="flex items-center gap-3">
+                <div className="flex items-center gap-2">
                     <input
                         type="month"
                         value={monthFilter}
@@ -146,6 +146,14 @@ export default function SettlementPage() {
                         className="flex items-center gap-2 h-10 px-4 rounded-md border text-sm font-medium hover:bg-muted/50 transition-colors disabled:opacity-40"
                     >
                         {copied ? <><Check className="h-4 w-4 text-green-500" /> Copied!</> : <><Copy className="h-4 w-4" /> Copy</>}
+                    </button>
+                    <button
+                        onClick={() => window.print()}
+                        disabled={!hasData}
+                        className="hidden sm:flex items-center gap-2 h-10 px-4 rounded-md border text-sm font-medium hover:bg-muted/50 transition-colors disabled:opacity-40"
+                        title="Print settlement"
+                    >
+                        <Printer className="h-4 w-4" />
                     </button>
                 </div>
             </div>

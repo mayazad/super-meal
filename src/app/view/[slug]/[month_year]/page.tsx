@@ -2,6 +2,25 @@ import { createClient } from '@/utils/supabase/server'
 import { notFound } from 'next/navigation'
 import SummaryClient from './summary-client'
 import Link from 'next/link'
+import type { Metadata } from 'next'
+
+type Params = { slug: string; month_year: string }
+
+export async function generateMetadata(props: { params: Promise<Params> }): Promise<Metadata> {
+    const { slug, month_year } = await props.params
+    const supabase = await createClient()
+    const { data: profile } = await supabase.from('profiles').select('mess_name').eq('mess_slug', slug).single()
+    const messName = profile?.mess_name ?? slug
+    const monthLabel = new Date(month_year + '-01T00:00:00').toLocaleString('default', { month: 'long', year: 'numeric' })
+    const title = `${messName} — ${monthLabel} Summary | SuperMeal`
+    const description = `View meal balances, deposits, and settlements for ${messName} for ${monthLabel}.`
+    return {
+        title,
+        description,
+        openGraph: { title, description, type: 'website' },
+        twitter: { card: 'summary', title, description },
+    }
+}
 
 export default async function ViewPublicSummaryPage(props: {
     params: Promise<{ slug: string, month_year: string }>
@@ -14,12 +33,12 @@ export default async function ViewPublicSummaryPage(props: {
     const supabase = await createClient()
 
     // 1. Resolve slug to admin_id
-    const { data: profile } = await supabase.from('profiles').select('id, mess_name').eq('mess_slug', slug).single()
-    if (!profile) {
+    const { data: profile } = await supabase.from('profiles').select('id, mess_name, role').eq('mess_slug', slug).single()
+    if (!profile || profile.role === 'revoked') {
         return (
             <div className="min-h-screen flex flex-col items-center justify-center p-4 bg-background text-foreground">
                 <h1 className="text-2xl font-bold mb-2">Workspace Not Found</h1>
-                <p className="text-muted-foreground mb-6">Could not find a mess acting under slug '{slug}'.</p>
+                <p className="text-muted-foreground mb-6">Could not find a mess acting under slug &apos;{slug}&apos;.</p>
                 <Link href="/" className="text-sm underline">Go Home</Link>
             </div>
         )

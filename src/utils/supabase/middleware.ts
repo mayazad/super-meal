@@ -56,10 +56,11 @@ export async function updateSession(request: NextRequest) {
     const role = profile?.role || 'pending_admin'
 
     const email = user.email
+    const senpaiEmail = process.env.NEXT_PUBLIC_SENPAI_EMAIL
 
     // Redirect authenticated users away from login page ONLY if they are fully active
     if (isLoginPath) {
-        if (role === 'senpai' && email === 'mayaz@adnan.hossain') {
+        if (role === 'senpai' && email === senpaiEmail) {
             url.pathname = '/senpai'
             return NextResponse.redirect(url)
         } else if (role === 'admin') {
@@ -70,21 +71,21 @@ export async function updateSession(request: NextRequest) {
         return supabaseResponse
     }
 
-    // Role-based protection: Senpai only - Strictly locked to mayaz@adnan.hossain
-    if (isSenpaiPath && (role !== 'senpai' || email !== 'mayaz@adnan.hossain')) {
+    // Role-based protection: Senpai only
+    if (isSenpaiPath && (role !== 'senpai' || email !== senpaiEmail)) {
         url.pathname = role === 'admin' ? '/admin/dashboard' : '/register/pending'
         return NextResponse.redirect(url)
     }
 
     // Role-based protection: Admin paths (Senpai can also access admin paths if they want)
-    if (isAdminPath && role === 'pending_admin') {
+    if (isAdminPath && (role === 'pending_admin' || role === 'revoked')) {
         url.pathname = '/register/pending'
         return NextResponse.redirect(url)
     }
 
     // Role-based protection: Pending admin shouldn't see pending page if they are already upgraded
     if (path.startsWith('/register/pending')) {
-        if (role === 'senpai' && email === 'mayaz@adnan.hossain') {
+        if (role === 'senpai' && email === senpaiEmail) {
             url.pathname = '/senpai'
             return NextResponse.redirect(url)
         } else if (role === 'admin' || role === 'senpai') { // If they have senpai role but wrong email, they go to admin dash

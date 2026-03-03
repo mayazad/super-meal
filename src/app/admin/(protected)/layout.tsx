@@ -55,7 +55,7 @@ export default async function AdminLayout({
                     })}
                 </nav>
 
-                {data.user.email === 'mayaz@adnan.hossain' && (
+                {data.user.email === process.env.NEXT_PUBLIC_SENPAI_EMAIL && (
                     <div className="mb-4">
                         <Link
                             href="/senpai"
@@ -76,7 +76,7 @@ export default async function AdminLayout({
             </aside>
 
             {/* Mobile Navigation (hamburger + drawer) */}
-            <MobileNav userEmail={data.user.email ?? ''} isSenpai={data.user.email === 'mayaz@adnan.hossain'} />
+            <MobileNav userEmail={data.user.email ?? ''} isSenpai={data.user.email === process.env.NEXT_PUBLIC_SENPAI_EMAIL} />
 
             {/* Main Content Area */}
             <main className="flex-1 min-w-0 lg:ml-64 flex flex-col min-h-screen">

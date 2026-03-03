@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/utils/supabase/client'
 import { motion } from 'framer-motion'
-import { Loader2, CheckCircle, AlertCircle } from 'lucide-react'
+import { Loader2, CheckCircle, AlertCircle, Eye, EyeOff } from 'lucide-react'
 import Link from 'next/link'
 
 export default function RegisterForm() {
@@ -13,6 +13,7 @@ export default function RegisterForm() {
     const [messName, setMessName] = useState('')
     const [messSlug, setMessSlug] = useState('')
     const [slugEdited, setSlugEdited] = useState(false)
+    const [showPassword, setShowPassword] = useState(false)
     const [error, setError] = useState<string | null>(null)
     const [isLoading, setIsLoading] = useState(false)
 
@@ -187,14 +188,24 @@ export default function RegisterForm() {
                 {/* Password */}
                 <div className="space-y-1.5">
                     <label className="text-sm font-semibold text-[#1A2F1A]">Password <span className="text-[11px] font-normal text-[#556B55]">(min 6 characters)</span></label>
-                    <input
-                        type="password"
-                        required
-                        minLength={6}
-                        value={password}
-                        onChange={(e) => setPassword(e.target.value)}
-                        className="flex h-11 w-full rounded-xl border border-[#D1E4D1] bg-[#F7F9F7] px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#10B981] transition-shadow"
-                    />
+                    <div className="relative">
+                        <input
+                            type={showPassword ? 'text' : 'password'}
+                            required
+                            minLength={6}
+                            value={password}
+                            onChange={(e) => setPassword(e.target.value)}
+                            className="flex h-11 w-full rounded-xl border border-[#D1E4D1] bg-[#F7F9F7] px-3 pr-10 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#10B981] transition-shadow"
+                        />
+                        <button
+                            type="button"
+                            onClick={() => setShowPassword(v => !v)}
+                            className="absolute right-3 top-1/2 -translate-y-1/2 text-[#556B55]/60 hover:text-[#10B981] transition-colors"
+                            aria-label={showPassword ? 'Hide password' : 'Show password'}
+                        >
+                            {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                        </button>
+                    </div>
                 </div>
 
                 {error && (

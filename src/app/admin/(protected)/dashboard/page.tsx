@@ -55,6 +55,7 @@ export default function AdminDashboardPage() {
     const [activeTheme, setActiveThemeState] = useState<'classic' | 'emerald'>('classic')
     const [isSavingTheme, setIsSavingTheme] = useState(false)
     const [broadcastMsg, setBroadcastMsg] = useState('')
+    const [messSlug, setMessSlug] = useState('')
 
     const months12 = getLast12Months()
 
@@ -155,11 +156,12 @@ export default function AdminDashboardPage() {
                 if (globalSettingsData.broadcast_message) setBroadcastMsg(globalSettingsData.broadcast_message)
             }
 
-            // Load this admin's personal theme from their profile
-            const { data: profileData } = await supabase.from('profiles').select('selected_theme').eq('id', adminId).single()
+            // Load this admin's personal theme and mess_slug from their profile
+            const { data: profileData } = await supabase.from('profiles').select('selected_theme, mess_slug').eq('id', adminId).single()
             if (profileData?.selected_theme) {
                 setActiveThemeState(profileData.selected_theme as 'classic' | 'emerald')
             }
+            if (profileData?.mess_slug) setMessSlug(profileData.mess_slug)
             fetchDebtors(selectedMonth, adminId)
         } catch {
             setError('Could not load dashboard data. Check your connection and try again.')
@@ -381,14 +383,25 @@ export default function AdminDashboardPage() {
                 </div>
                 <div className="rounded-xl border bg-card shadow-sm p-6 space-y-3">
                     <h3 className="font-semibold text-lg">Quick Actions</h3>
-                    <p className="text-sm text-muted-foreground">Use the sidebar to manage members, log groceries, record utilities, and update meal counts.</p>
-                    <a href={`/summary/${selectedMonth}`} target="_blank" rel="noreferrer"
-                        className="inline-flex items-center gap-2 text-sm font-medium underline hover:text-muted-foreground transition-colors">
-                        <ExternalLink className="h-4 w-4" /> Open {stats?.monthLabel ?? ''} Public Report →
+                    <div className="grid grid-cols-2 gap-2">
+                        {[
+                            { label: '+ Log Meals', href: '/admin/meals' },
+                            { label: '+ Add Deposit', href: '/admin/meal-deposits' },
+                            { label: '+ Grocery', href: '/admin/groceries' },
+                            { label: '+ Utility Bill', href: '/admin/utilities' },
+                            { label: 'Members', href: '/admin/members' },
+                            { label: 'Settlement', href: '/admin/settlement' },
+                        ].map(({ label, href }) => (
+                            <a key={href} href={href}
+                                className="flex items-center justify-center h-9 rounded-lg border text-xs font-semibold hover:bg-muted/60 transition-colors text-center px-2">
+                                {label}
+                            </a>
+                        ))}
+                    </div>
+                    <a href={messSlug ? `/view/${messSlug}` : '#'} target="_blank" rel="noreferrer"
+                        className="inline-flex items-center gap-2 text-xs font-medium text-muted-foreground hover:text-foreground transition-colors mt-1">
+                        <ExternalLink className="h-3.5 w-3.5" /> Open Public View →
                     </a>
-                    <p className="text-[11px] text-muted-foreground/50 pt-2 tracking-wide">
-                        Crafted by <span className="font-mono font-semibold">MayazAD</span>
-                    </p>
                 </div>
             </div>
 
