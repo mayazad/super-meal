@@ -1,10 +1,11 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { usePathname } from 'next/navigation'
+import { usePathname, useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Menu, X, LayoutDashboard, Users, Utensils, ShoppingCart, Zap, Wallet, Landmark, LogOut, ShieldCheck } from 'lucide-react'
+import { createClient } from '@/utils/supabase/client'
 
 const navItems = [
     { name: 'Dashboard', href: '/admin/dashboard', icon: LayoutDashboard },
@@ -24,6 +25,15 @@ type Props = {
 export default function MobileNav({ userEmail, isSenpai }: Props) {
     const [isOpen, setIsOpen] = useState(false)
     const pathname = usePathname()
+    const router = useRouter()
+    const supabase = createClient()
+
+    const handleSignOut = async () => {
+        close()
+        await supabase.auth.signOut()
+        router.push('/')
+        router.refresh()
+    }
 
     // ── Scroll-lock: freeze body scroll while drawer is open ──────────────────
     useEffect(() => {
@@ -157,16 +167,14 @@ export default function MobileNav({ userEmail, isSenpai }: Props) {
                                     To Senpai Control
                                 </a>
                             )}
-                            <form action="/admin/logout" method="POST">
-                                <button
-                                    type="submit"
-                                    className="w-full flex items-center gap-3 rounded-lg px-4 py-3 text-sm font-medium transition-colors min-h-[48px]"
-                                    style={{ color: 'var(--sidebar-muted)' }}
-                                >
-                                    <LogOut className="h-5 w-5 shrink-0" />
-                                    Sign Out
-                                </button>
-                            </form>
+                            <button
+                                type="button"
+                                onClick={handleSignOut}
+                                className="w-full flex items-center gap-3 rounded-lg px-4 py-3 text-sm font-medium transition-colors min-h-[48px] text-red-500 hover:bg-red-50"
+                            >
+                                <LogOut className="h-5 w-5 shrink-0" />
+                                Sign Out
+                            </button>
                         </div>
                     </motion.div>
                 )}
