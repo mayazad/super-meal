@@ -64,6 +64,7 @@ type RawDeposit = {
 
 
 type SummaryProps = {
+    slug: string
     monthName: string
     monthYear: string
     breakdown: BreakdownItem[]
@@ -88,7 +89,7 @@ function fmtDate(dateStr: string) {
     return new Date(dateStr + 'T00:00:00').toLocaleDateString(undefined, { month: 'short', day: 'numeric' })
 }
 
-export default function SummaryClient({ monthName, monthYear, breakdown, textSummary, deadlines, utilityBills, isLocked, prevMonth, nextMonth, hasNextMonth, rawDeposits, stats }: SummaryProps) {
+export default function SummaryClient({ slug, monthName, monthYear, breakdown, textSummary, deadlines, utilityBills, isLocked, prevMonth, nextMonth, hasNextMonth, rawDeposits, stats }: SummaryProps) {
     const [isExporting, setIsExporting] = useState(false)
     const [isExportingXlsx, setIsExportingXlsx] = useState(false)
     const [copiedLink, setCopiedLink] = useState(false)
@@ -241,17 +242,18 @@ export default function SummaryClient({ monthName, monthYear, breakdown, textSum
             <div className="max-w-2xl mx-auto space-y-6">
 
                 {/* Month Navigation */}
-                <div className="flex items-center justify-between">
-                    <NextLink href={`/summary/${prevMonth}`}
-                        className="h-9 w-9 flex items-center justify-center rounded-lg border hover:bg-muted transition-colors">
-                        <ChevronLeft className="h-4 w-4" />
+                <div className="flex gap-2">
+                    <NextLink href={`/view/${slug}/${prevMonth}`}
+                        className="inline-flex items-center gap-1.5 px-3 py-1.5 md:px-4 md:py-2 bg-muted text-muted-foreground hover:bg-muted/80 rounded-full text-xs md:text-sm font-medium transition-colors"
+                        prefetch={true}
+                    >
+                        <ChevronLeft className="h-4 w-4" /> Prev
                     </NextLink>
-                    <span className="text-sm font-semibold tracking-wide">{monthName}</span>
                     <NextLink
-                        href={hasNextMonth ? `/summary/${nextMonth}` : '#'}
-                        aria-disabled={!hasNextMonth}
-                        className={`h-9 w-9 flex items-center justify-center rounded-lg border transition-colors ${hasNextMonth ? 'hover:bg-muted' : 'opacity-30 pointer-events-none'}`}>
-                        <ChevronRight className="h-4 w-4" />
+                        href={hasNextMonth ? `/view/${slug}/${nextMonth}` : '#'}
+                        className={`inline-flex items-center gap-1.5 px-3 py-1.5 md:px-4 md:py-2 rounded-full text-xs md:text-sm font-medium transition-colors ${hasNextMonth ? 'bg-muted text-muted-foreground hover:bg-muted/80' : 'bg-muted/50 text-muted-foreground/30 cursor-not-allowed'}`}
+                        prefetch={hasNextMonth}
+                    >
                     </NextLink>
                 </div>
 

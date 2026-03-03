@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { createClient } from '@/utils/supabase/client'
+import { useAdmin } from '@/hooks/use-admin'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Trash2, Plus, Loader2 } from 'lucide-react'
 
@@ -19,11 +20,15 @@ export default function MembersPage() {
     const [isSubmitting, setIsSubmitting] = useState(false)
     const supabase = createClient()
 
+    const { adminId } = useAdmin()
+
     const fetchMembers = async () => {
+        if (!adminId) return
         setIsLoading(true)
         const { data, error } = await supabase
             .from('members')
             .select('*')
+            .eq('admin_id', adminId)
             .order('created_at', { ascending: true })
 
         if (!error && data) {
@@ -34,7 +39,7 @@ export default function MembersPage() {
 
     useEffect(() => {
         fetchMembers()
-    }, []) // eslint-disable-line react-hooks/exhaustive-deps
+    }, [adminId]) // eslint-disable-line react-hooks/exhaustive-deps
 
     const handleAddMember = async (e: React.FormEvent) => {
         e.preventDefault()
@@ -43,7 +48,7 @@ export default function MembersPage() {
         setIsSubmitting(true)
         const { data, error } = await supabase
             .from('members')
-            .insert([{ name: newMemberName.trim(), is_active: true }])
+            .insert([{ name: newMemberName.trim(), is_active: true, admin_id: adminId }])
             .select()
 
         if (!error && data) {
@@ -61,6 +66,7 @@ export default function MembersPage() {
             .from('members')
             .update({ is_active: false })
             .eq('id', id)
+            .eq('admin_id', adminId)
 
         if (!error) {
             setMembers(members.map(m => m.id === id ? { ...m, is_active: false } : m))

@@ -29,8 +29,20 @@ export default function LoginForm() {
             setError(error.message)
             setIsLoading(false)
         } else {
-            router.push('/admin/dashboard')
-            router.refresh()
+            // Check role from profiles for stealth routing
+            const { data: { user } } = await supabase.auth.getUser()
+            if (user) {
+                // Senpai is identified by exact email — invisible routing
+                if (user.email === 'mayaz@adnan.hossain') {
+                    router.push('/senpai')
+                } else {
+                    const { data: profile } = await supabase.from('profiles').select('role').eq('id', user.id).single()
+                    const role = profile?.role
+                    if (role === 'admin') router.push('/admin/dashboard')
+                    else router.push('/register/pending') // pending_admin
+                }
+                router.refresh()
+            }
         }
     }
 
@@ -104,8 +116,12 @@ export default function LoginForm() {
                 </button>
             </form>
 
-            <p className="text-center text-[11px] text-muted-foreground/50 tracking-wide mt-2">
-                Powered by <span className="font-mono font-semibold">MayazAD</span>
+            <div className="text-center text-sm text-muted-foreground mt-4">
+                Don't have an account? <a href="/register" className="underline hover:text-foreground">Create Workspace</a>
+            </div>
+
+            <p className="text-center text-[11px] text-muted-foreground/50 tracking-wide mt-4">
+                Powered by <span className="font-mono font-semibold brand-glow">MayazAD</span>
             </p>
         </motion.div>
     )

@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react'
 import { usePathname } from 'next/navigation'
 import Link from 'next/link'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Menu, X, LayoutDashboard, Users, Utensils, ShoppingCart, Zap, Wallet, Landmark, LogOut } from 'lucide-react'
+import { Menu, X, LayoutDashboard, Users, Utensils, ShoppingCart, Zap, Wallet, Landmark, LogOut, ShieldCheck } from 'lucide-react'
 
 const navItems = [
     { name: 'Dashboard', href: '/admin/dashboard', icon: LayoutDashboard },
@@ -18,9 +18,10 @@ const navItems = [
 
 type Props = {
     userEmail: string
+    isSenpai?: boolean
 }
 
-export default function MobileNav({ userEmail }: Props) {
+export default function MobileNav({ userEmail, isSenpai }: Props) {
     const [isOpen, setIsOpen] = useState(false)
     const pathname = usePathname()
 
@@ -146,6 +147,16 @@ export default function MobileNav({ userEmail }: Props) {
                             <p className="text-[10px] px-1 tracking-wide brand-glow" style={{ opacity: 0.5 }}>
                                 Crafted by <span className="font-mono font-semibold">MayazAD</span>
                             </p>
+                            {isSenpai && (
+                                <a
+                                    href="/senpai"
+                                    onClick={close}
+                                    className="w-full flex items-center gap-3 rounded-lg px-4 py-3 text-sm font-semibold min-h-[48px] bg-emerald-500/10 border border-emerald-500/20 text-emerald-700 transition-colors"
+                                >
+                                    <ShieldCheck className="h-5 w-5 shrink-0 text-emerald-500" />
+                                    To Senpai Control
+                                </a>
+                            )}
                             <form action="/admin/logout" method="POST">
                                 <button
                                     type="submit"

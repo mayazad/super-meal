@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { createClient } from '@/utils/supabase/client'
+import { useAdmin } from '@/hooks/use-admin'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Loader2, Calendar as CalendarIcon, Landmark, User as UserIcon } from 'lucide-react'
 
@@ -36,11 +37,14 @@ export default function UtilityDepositsPage() {
     const currentMonthFilter = `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, '0')}`
     const [monthFilter, setMonthFilter] = useState(currentMonthFilter)
 
+    const { adminId } = useAdmin()
+
     const fetchData = async () => {
+        if (!adminId) return
         setIsLoading(true)
 
         const [membersResponse, depositsResponse] = await Promise.all([
-            supabase.from('members').select('id, name, is_active').order('name'),
+            supabase.from('members').select('id, name, is_active').eq('admin_id', adminId).order('name'),
             supabase
                 .from('utility_deposits')
                 .select(`
@@ -48,6 +52,7 @@ export default function UtilityDepositsPage() {
                     members (name)
                 `)
                 .eq('month_year', monthFilter)
+                .eq('admin_id', adminId)
                 .order('date', { ascending: false })
         ])
 
@@ -63,7 +68,7 @@ export default function UtilityDepositsPage() {
 
     useEffect(() => {
         fetchData()
-    }, [monthFilter]) // eslint-disable-line react-hooks/exhaustive-deps
+    }, [monthFilter, adminId]) // eslint-disable-line react-hooks/exhaustive-deps
 
     const handleAddDeposit = async (e: React.FormEvent) => {
         e.preventDefault()
@@ -78,7 +83,8 @@ export default function UtilityDepositsPage() {
                 member_id: memberId,
                 date,
                 amount: Number(amount),
-                month_year
+                month_year,
+                admin_id: adminId
             }])
 
         if (!error) {

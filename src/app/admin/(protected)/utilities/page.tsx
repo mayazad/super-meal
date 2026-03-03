@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { createClient } from '@/utils/supabase/client'
+import { useAdmin } from '@/hooks/use-admin'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Loader2, Zap, CheckCircle2, Circle } from 'lucide-react'
 
@@ -37,7 +38,10 @@ export default function UtilitiesPage() {
     const currentMonthFilter = `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, '0')}`
     const [monthFilter, setMonthFilter] = useState(currentMonthFilter)
 
+    const { adminId } = useAdmin()
+
     const fetchAll = async () => {
+        if (!adminId) return
         setIsLoading(true)
 
         const [
@@ -45,9 +49,9 @@ export default function UtilitiesPage() {
             { data: membersData },
             { data: paymentsData },
         ] = await Promise.all([
-            supabase.from('utilities').select('*').eq('month_year', monthFilter).order('created_at', { ascending: true }),
-            supabase.from('members').select('id, name').eq('is_active', true).order('name'),
-            supabase.from('utility_payments').select('utility_id, member_id, paid'),
+            supabase.from('utilities').select('*').eq('month_year', monthFilter).eq('admin_id', adminId).order('created_at', { ascending: true }),
+            supabase.from('members').select('id, name').eq('is_active', true).eq('admin_id', adminId).order('name'),
+            supabase.from('utility_payments').select('utility_id, member_id, paid').eq('admin_id', adminId),
         ])
 
         setUtilities(utilitiesData || [])
@@ -65,7 +69,7 @@ export default function UtilitiesPage() {
 
     useEffect(() => {
         fetchAll()
-    }, [monthFilter]) // eslint-disable-line react-hooks/exhaustive-deps
+    }, [monthFilter, adminId]) // eslint-disable-line react-hooks/exhaustive-deps
 
     const handleAddUtility = async (e: React.FormEvent) => {
         e.preventDefault()
@@ -76,6 +80,7 @@ export default function UtilitiesPage() {
             type: type.trim(),
             cost: Number(cost),
             month_year: monthFilter,
+            admin_id: adminId,
         }
         if (dueDate) payload.due_date = dueDate
 
@@ -120,7 +125,7 @@ export default function UtilitiesPage() {
         const { error } = await supabase
             .from('utility_payments')
             .upsert(
-                [{ utility_id: utilityId, member_id: memberId, paid: !isPaid }],
+                [{ utility_id: utilityId, member_id: memberId, paid: !isPaid, admin_id: adminId }],
                 { onConflict: 'utility_id,member_id' }
             )
 

@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import { createClient } from '@/utils/supabase/client'
+import { useAdmin } from '@/hooks/use-admin'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Loader2, Save, User as UserIcon, Minus, Plus, BookOpen } from 'lucide-react'
 
@@ -32,14 +33,18 @@ export default function MealsPage() {
     // month_year derived from dateFilter — drives both Save and the history table
     const monthYear = dateFilter.substring(0, 7)
 
+    const { adminId } = useAdmin()
+
     // ── Fetch members + counters for the selected date ──────────────────────────
     const fetchData = useCallback(async () => {
+        if (!adminId) return
         setIsLoading(true)
         const [{ data: membersData }, { data: mealsData }] = await Promise.all([
-            supabase.from('members').select('id, name').eq('is_active', true).order('name'),
+            supabase.from('members').select('id, name').eq('is_active', true).eq('admin_id', adminId).order('name'),
             supabase.from('daily_meals')
                 .select('member_id, regular_meals, guest_meals')
-                .eq('date', dateFilter),
+                .eq('date', dateFilter)
+                .eq('admin_id', adminId),
         ])
 
         const mems = membersData || []
@@ -56,11 +61,13 @@ export default function MealsPage() {
 
     // ── Fetch monthly history for the ledger table ───────────────────────────────
     const fetchLedger = useCallback(async () => {
+        if (!adminId) return
         setIsLoadingLedger(true)
         const { data } = await supabase
             .from('daily_meals')
             .select('id, date, member_id, regular_meals, guest_meals, created_at')
             .eq('month_year', monthYear)
+            .eq('admin_id', adminId)
             .order('date', { ascending: false })
         setLedger(data || [])
         setIsLoadingLedger(false)
@@ -71,9 +78,10 @@ export default function MealsPage() {
 
     // ── Supabase Realtime — update history table without page refresh ─────────────
     useEffect(() => {
+        if (!adminId) return
         const channel = supabase
             .channel('daily_meals_changes')
-            .on('postgres_changes', { event: '*', schema: 'public', table: 'daily_meals' }, () => {
+            .on('postgres_changes', { event: '*', schema: 'public', table: 'daily_meals', filter: `admin_id=eq.${adminId}` }, () => {
                 fetchLedger()
             })
             .subscribe()
@@ -87,6 +95,7 @@ export default function MealsPage() {
 
     // ── Save — upsert so corrections are always possible ─────────────────────────
     const handleSaveAll = async () => {
+        if (!adminId) return
         setIsSubmitting(true)
         const payload = members.map(m => ({
             member_id: m.id,
@@ -94,6 +103,7 @@ export default function MealsPage() {
             month_year: monthYear,
             regular_meals: meals[m.id]?.regular || 0,
             guest_meals: meals[m.id]?.guest || 0,
+            admin_id: adminId,
         }))
 
         const { error } = await supabase

@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import { createClient } from '@/utils/supabase/client'
+import { useAdmin } from '@/hooks/use-admin'
 import { motion, AnimatePresence } from 'framer-motion'
 import { ChevronLeft, ChevronRight, Lock, Unlock, ExternalLink, TrendingUp, Copy, Check, AlertTriangle, Palette } from 'lucide-react'
 
@@ -50,10 +51,13 @@ export default function AdminDashboardPage() {
     const [debtors, setDebtors] = useState<DebtorInfo[]>([])
     const [activeTheme, setActiveThemeState] = useState<'classic' | 'emerald'>('classic')
     const [isSavingTheme, setIsSavingTheme] = useState(false)
+    const [broadcastMsg, setBroadcastMsg] = useState('')
 
     const months12 = getLast12Months()
 
-    const fetchStats = useCallback(async (monthYear: string): Promise<MonthStats> => {
+    const { adminId, adminEmail, isAuthLoading } = useAdmin()
+
+    const fetchStats = useCallback(async (monthYear: string, currentAdminId: string): Promise<MonthStats> => {
         const [
             { data: meals },
             { data: groceries },
@@ -62,12 +66,12 @@ export default function AdminDashboardPage() {
             { data: utilDeps },
             { data: locked },
         ] = await Promise.all([
-            supabase.from('daily_meals').select('regular_meals, guest_meals').eq('month_year', monthYear),
-            supabase.from('groceries').select('cost').eq('month_year', monthYear),
-            supabase.from('utilities').select('cost').eq('month_year', monthYear),
-            supabase.from('meal_deposits').select('amount').eq('month_year', monthYear),
-            supabase.from('utility_deposits').select('amount').eq('month_year', monthYear),
-            supabase.from('locked_months').select('id').eq('month_year', monthYear),
+            supabase.from('daily_meals').select('regular_meals, guest_meals').eq('month_year', monthYear).eq('admin_id', currentAdminId),
+            supabase.from('groceries').select('cost').eq('month_year', monthYear).eq('admin_id', currentAdminId),
+            supabase.from('utilities').select('cost').eq('month_year', monthYear).eq('admin_id', currentAdminId),
+            supabase.from('meal_deposits').select('amount').eq('month_year', monthYear).eq('admin_id', currentAdminId),
+            supabase.from('utility_deposits').select('amount').eq('month_year', monthYear).eq('admin_id', currentAdminId),
+            supabase.from('locked_months').select('id').eq('month_year', monthYear).eq('admin_id', currentAdminId),
         ])
 
         const totalMeals = (meals || []).reduce((s, r) => s + r.regular_meals + r.guest_meals, 0)
@@ -90,7 +94,7 @@ export default function AdminDashboardPage() {
     }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
     // Fetch per-member balances for the Copy Due List
-    const fetchDebtors = useCallback(async (monthYear: string) => {
+    const fetchDebtors = useCallback(async (monthYear: string, currentAdminId: string) => {
         const [
             { data: activeMembers },
             { data: dailyMeals },
@@ -99,12 +103,12 @@ export default function AdminDashboardPage() {
             { data: mealDeposits },
             { data: utilityDeposits },
         ] = await Promise.all([
-            supabase.from('members').select('id, name').eq('is_active', true).order('name'),
-            supabase.from('daily_meals').select('member_id, regular_meals, guest_meals').eq('month_year', monthYear),
-            supabase.from('groceries').select('cost').eq('month_year', monthYear),
-            supabase.from('utilities').select('cost').eq('month_year', monthYear),
-            supabase.from('meal_deposits').select('amount, member_id').eq('month_year', monthYear),
-            supabase.from('utility_deposits').select('amount, member_id').eq('month_year', monthYear),
+            supabase.from('members').select('id, name').eq('is_active', true).eq('admin_id', currentAdminId).order('name'),
+            supabase.from('daily_meals').select('member_id, regular_meals, guest_meals').eq('month_year', monthYear).eq('admin_id', currentAdminId),
+            supabase.from('groceries').select('cost').eq('month_year', monthYear).eq('admin_id', currentAdminId),
+            supabase.from('utilities').select('cost').eq('month_year', monthYear).eq('admin_id', currentAdminId),
+            supabase.from('meal_deposits').select('amount, member_id').eq('month_year', monthYear).eq('admin_id', currentAdminId),
+            supabase.from('utility_deposits').select('amount, member_id').eq('month_year', monthYear).eq('admin_id', currentAdminId),
         ])
 
         const totalGroceryCost = (groceries || []).reduce((s, r) => s + Number(r.cost), 0)
@@ -128,52 +132,60 @@ export default function AdminDashboardPage() {
     }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
     const loadAll = useCallback(async () => {
+        if (!adminId) return
         setIsLoading(true)
-        const [{ count }, { data: userRes }, selectedStats, ...rest] = await Promise.all([
-            supabase.from('members').select('*', { count: 'exact', head: true }).eq('is_active', true),
-            supabase.auth.getUser(),
-            fetchStats(selectedMonth),
-            ...months12.slice(1).map(m => fetchStats(m)),
+        const [{ count }, selectedStats, ...rest] = await Promise.all([
+            supabase.from('members').select('*', { count: 'exact', head: true }).eq('is_active', true).eq('admin_id', adminId),
+            fetchStats(selectedMonth, adminId),
+            ...months12.slice(1).map(m => fetchStats(m, adminId)),
         ])
         setMembersCount(count || 0)
-        setUserEmail(userRes.user?.email ?? '')
+        setUserEmail(adminEmail ?? '')
         setStats(selectedStats)
         const allStats = [selectedStats, ...rest as MonthStats[]]
         setYearlyData([...allStats].reverse())
 
-        // Fetch current theme
-        const { data: settingsData } = await supabase.from('app_settings').select('selected_theme').eq('id', 'global_config').single()
-        if (settingsData?.selected_theme) setActiveThemeState(settingsData.selected_theme as 'classic' | 'emerald')
+        // Fetch current theme and broadcast message (global config, not per-admin)
+        const { data: globalSettingsData } = await supabase.from('app_settings').select('selected_theme, broadcast_message').eq('id', 'global_config').single()
+        if (globalSettingsData) {
+            setActiveThemeState(globalSettingsData.selected_theme as 'classic' | 'emerald' || 'classic')
+            if (globalSettingsData.broadcast_message) {
+                setBroadcastMsg(globalSettingsData.broadcast_message)
+            }
+        }
 
         setIsLoading(false)
-        fetchDebtors(selectedMonth)
-    }, [selectedMonth]) // eslint-disable-line react-hooks/exhaustive-deps
+        fetchDebtors(selectedMonth, adminId)
+    }, [selectedMonth, adminId, adminEmail]) // eslint-disable-line react-hooks/exhaustive-deps
 
     useEffect(() => { loadAll() }, [loadAll])
 
     const confirmLock = async () => {
+        if (!adminId) return
         setIsLocking(true)
         setShowLockModal(false)
-        await supabase.from('locked_months').insert([{ month_year: selectedMonth, locked_by: userEmail }])
-        const updated = await fetchStats(selectedMonth)
+        await supabase.from('locked_months').insert([{ month_year: selectedMonth, locked_by: userEmail, admin_id: adminId }])
+        const updated = await fetchStats(selectedMonth, adminId)
         setStats(updated)
         setIsLocking(false)
     }
 
     const handleUnlock = async () => {
+        if (!adminId) return
         setIsLocking(true)
-        await supabase.from('locked_months').delete().eq('month_year', selectedMonth)
-        const updated = await fetchStats(selectedMonth)
+        await supabase.from('locked_months').delete().eq('month_year', selectedMonth).eq('admin_id', adminId)
+        const updated = await fetchStats(selectedMonth, adminId)
         setStats(updated)
         setIsLocking(false)
     }
 
     const handleSetTheme = async (theme: 'classic' | 'emerald') => {
+        if (!adminId) return
         setIsSavingTheme(true)
         setActiveThemeState(theme)
         // Optimistic: apply locally right away
         document.documentElement.setAttribute('data-theme', theme)
-        await supabase.from('app_settings').update({ selected_theme: theme, updated_at: new Date().toISOString() }).eq('id', 'global_config')
+        await supabase.from('app_settings').update({ selected_theme: theme, updated_at: new Date().toISOString() }).eq('id', 'global_config').eq('admin_id', adminId)
         setIsSavingTheme(false)
     }
 
@@ -250,6 +262,23 @@ export default function AdminDashboardPage() {
             </AnimatePresence>
 
             {/* ── Header + Month Navigator ─────────────────────────────── */}
+            {broadcastMsg && (
+                <motion.div
+                    initial={{ opacity: 0, y: -10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className="bg-emerald-500 text-white px-4 py-3 rounded-xl shadow-lg flex items-center justify-between"
+                >
+                    <div className="flex items-center gap-3">
+                        <div className="p-1.5 bg-white/20 rounded-md">
+                            <AlertTriangle className="h-5 w-5 fill-emerald-50 text-emerald-500" />
+                        </div>
+                        <div>
+                            <p className="text-[10px] font-black uppercase tracking-widest text-emerald-100/80 mb-0.5">Senpai Broadcast</p>
+                            <p className="font-medium text-sm">{broadcastMsg}</p>
+                        </div>
+                    </div>
+                </motion.div>
+            )}
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                 <div>
                     <h1 className="text-3xl font-bold tracking-tight">Overview</h1>
@@ -276,39 +305,41 @@ export default function AdminDashboardPage() {
             </div>
 
             {/* ── Lock/Unlock Banner ───────────────────────────────────── */}
-            {stats?.isLocked ? (
-                <div className="flex items-center justify-between rounded-xl border border-foreground/20 bg-muted/40 px-5 py-3">
-                    <div className="flex items-center gap-2 text-sm font-medium">
-                        <Lock className="h-4 w-4" />
-                        <span>{stats.monthLabel} is <strong>locked</strong> — read-only archive.</span>
-                    </div>
-                    <button onClick={handleUnlock} disabled={isLocking} className="text-xs text-muted-foreground hover:text-foreground underline transition-colors disabled:opacity-50">
-                        {isLocking ? 'Unlocking…' : 'Unlock'}
-                    </button>
-                </div>
-            ) : (
-                <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-dashed border-foreground/20 px-5 py-3">
-                    <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                        <Unlock className="h-4 w-4" />
-                        <span>{stats?.monthLabel} is open for editing.</span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                        {/* Copy Due List */}
-                        {debtors.length > 0 && (
-                            <button onClick={handleCopyDueList}
-                                className="inline-flex h-8 items-center gap-1.5 rounded-md border px-3 text-xs font-medium hover:bg-muted transition-colors">
-                                {copiedDueList ? <Check className="h-3 w-3 text-green-500" /> : <Copy className="h-3 w-3" />}
-                                {copiedDueList ? 'Copied!' : `Copy Due List (${debtors.length})`}
-                            </button>
-                        )}
-                        <button onClick={() => setShowLockModal(true)} disabled={isLocking}
-                            className="inline-flex h-8 items-center gap-1.5 rounded-md border px-3 text-xs font-medium hover:bg-muted transition-colors disabled:opacity-50">
-                            <Lock className="h-3 w-3" />
-                            {isLocking ? 'Locking…' : 'Lock Month'}
+            {
+                stats?.isLocked ? (
+                    <div className="flex items-center justify-between rounded-xl border border-foreground/20 bg-muted/40 px-5 py-3">
+                        <div className="flex items-center gap-2 text-sm font-medium">
+                            <Lock className="h-4 w-4" />
+                            <span>{stats.monthLabel} is <strong>locked</strong> — read-only archive.</span>
+                        </div>
+                        <button onClick={handleUnlock} disabled={isLocking} className="text-xs text-muted-foreground hover:text-foreground underline transition-colors disabled:opacity-50">
+                            {isLocking ? 'Unlocking…' : 'Unlock'}
                         </button>
                     </div>
-                </div>
-            )}
+                ) : (
+                    <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-dashed border-foreground/20 px-5 py-3">
+                        <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                            <Unlock className="h-4 w-4" />
+                            <span>{stats?.monthLabel} is open for editing.</span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                            {/* Copy Due List */}
+                            {debtors.length > 0 && (
+                                <button onClick={handleCopyDueList}
+                                    className="inline-flex h-8 items-center gap-1.5 rounded-md border px-3 text-xs font-medium hover:bg-muted transition-colors">
+                                    {copiedDueList ? <Check className="h-3 w-3 text-green-500" /> : <Copy className="h-3 w-3" />}
+                                    {copiedDueList ? 'Copied!' : `Copy Due List (${debtors.length})`}
+                                </button>
+                            )}
+                            <button onClick={() => setShowLockModal(true)} disabled={isLocking}
+                                className="inline-flex h-8 items-center gap-1.5 rounded-md border px-3 text-xs font-medium hover:bg-muted transition-colors disabled:opacity-50">
+                                <Lock className="h-3 w-3" />
+                                {isLocking ? 'Locking…' : 'Lock Month'}
+                            </button>
+                        </div>
+                    </div>
+                )
+            }
 
             {/* ── Stat Cards ───────────────────────────────────────────── */}
             <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
@@ -443,6 +474,6 @@ export default function AdminDashboardPage() {
                 {isSavingTheme && <p className="text-xs text-muted-foreground">Applying theme to all screens…</p>}
             </div>
 
-        </div>
+        </div >
     )
 }

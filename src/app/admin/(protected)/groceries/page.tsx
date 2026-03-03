@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import { createClient } from '@/utils/supabase/client'
+import { useAdmin } from '@/hooks/use-admin'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Loader2, Calendar as CalendarIcon, ShoppingBag, User as UserIcon, Trash2 } from 'lucide-react'
 
@@ -32,14 +33,16 @@ export default function GroceriesPage() {
     const [cost, setCost] = useState('')
     const [purchasedBy, setPurchasedBy] = useState<string>('')
 
+    const { adminId } = useAdmin()
     const currentMonthFilter = `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, '0')}`
     const [monthFilter, setMonthFilter] = useState(currentMonthFilter)
 
     const fetchData = useCallback(async () => {
+        if (!adminId) return
         setIsLoading(true)
         const [{ data: groceryData }, { data: memberData }] = await Promise.all([
-            supabase.from('groceries').select('*').eq('month_year', monthFilter).order('date', { ascending: false }),
-            supabase.from('members').select('id, name').eq('is_active', true).order('name'),
+            supabase.from('groceries').select('*').eq('month_year', monthFilter).eq('admin_id', adminId).order('date', { ascending: false }),
+            supabase.from('members').select('id, name').eq('is_active', true).eq('admin_id', adminId).order('name'),
         ])
         setGroceries(groceryData || [])
         setMembers(memberData || [])
@@ -48,7 +51,7 @@ export default function GroceriesPage() {
             setPurchasedBy(memberData[0].id)
         }
         setIsLoading(false)
-    }, [monthFilter]) // eslint-disable-line react-hooks/exhaustive-deps
+    }, [monthFilter, adminId]) // eslint-disable-line react-hooks/exhaustive-deps
 
     useEffect(() => { fetchData() }, [fetchData])
 
@@ -63,7 +66,7 @@ export default function GroceriesPage() {
         // 1. Insert grocery record
         const { data: groceryRow, error: groceryErr } = await supabase
             .from('groceries')
-            .insert([{ date, item_name: itemName.trim(), cost: costNum, month_year, purchased_by: purchasedBy || null }])
+            .insert([{ date, item_name: itemName.trim(), cost: costNum, month_year, purchased_by: purchasedBy || null, admin_id: adminId }])
             .select()
             .single()
 
@@ -83,6 +86,7 @@ export default function GroceriesPage() {
                     month_year,
                     date,
                     note: `Auto-credit: ${itemName.trim()}`,
+                    admin_id: adminId,
                 }])
             if (depositErr) console.error('Auto-deposit failed:', depositErr)
         }

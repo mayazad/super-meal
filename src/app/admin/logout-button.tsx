@@ -10,7 +10,7 @@ export default function AdminLogoutButton() {
 
     const handleSignOut = async () => {
         await supabase.auth.signOut()
-        router.push('/admin/login')
+        router.push('/')
         router.refresh()
     }
 
