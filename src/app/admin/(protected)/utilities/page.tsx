@@ -5,6 +5,8 @@ import { createClient } from '@/utils/supabase/client'
 import { useAdmin } from '@/hooks/use-admin'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Loader2, Zap, CheckCircle2, Circle } from 'lucide-react'
+import { SkeletonRow } from '@/components/ui/skeleton'
+import { PageError } from '@/components/ui/page-error'
 
 type Utility = {
     id: string
@@ -28,6 +30,7 @@ export default function UtilitiesPage() {
     const [toggling, setToggling] = useState<PaymentKey | null>(null)
     const [deleteConfirm, setDeleteConfirm] = useState<Record<string, boolean>>({})
     const [isLoading, setIsLoading] = useState(true)
+    const [error, setError] = useState<string | null>(null)
     const [isSubmitting, setIsSubmitting] = useState(false)
     const supabase = createClient()
 
@@ -43,28 +46,23 @@ export default function UtilitiesPage() {
     const fetchAll = async () => {
         if (!adminId) return
         setIsLoading(true)
-
-        const [
-            { data: utilitiesData },
-            { data: membersData },
-            { data: paymentsData },
-        ] = await Promise.all([
-            supabase.from('utilities').select('*').eq('month_year', monthFilter).eq('admin_id', adminId).order('created_at', { ascending: true }),
-            supabase.from('members').select('id, name').eq('is_active', true).eq('admin_id', adminId).order('name'),
-            supabase.from('utility_payments').select('utility_id, member_id, paid').eq('admin_id', adminId),
-        ])
-
-        setUtilities(utilitiesData || [])
-        setMembers(membersData || [])
-
-        // Build a Set of "utility_id:member_id" for paid entries
-        const paidSet = new Set<PaymentKey>()
-            ; (paymentsData || []).forEach(p => {
-                if (p.paid) paidSet.add(`${p.utility_id}:${p.member_id}`)
-            })
-        setPayments(paidSet)
-
-        setIsLoading(false)
+        setError(null)
+        try {
+            const [{ data: utilitiesData }, { data: membersData }, { data: paymentsData }] = await Promise.all([
+                supabase.from('utilities').select('*').eq('month_year', monthFilter).eq('admin_id', adminId).order('created_at', { ascending: true }),
+                supabase.from('members').select('id, name').eq('is_active', true).eq('admin_id', adminId).order('name'),
+                supabase.from('utility_payments').select('utility_id, member_id, paid').eq('admin_id', adminId),
+            ])
+            setUtilities(utilitiesData || [])
+            setMembers(membersData || [])
+            const paidSet = new Set<PaymentKey>();
+            (paymentsData || []).forEach(p => { if (p.paid) paidSet.add(`${p.utility_id}:${p.member_id}`) })
+            setPayments(paidSet)
+        } catch {
+            setError('Failed to load utility data.')
+        } finally {
+            setIsLoading(false)
+        }
     }
 
     useEffect(() => {
@@ -204,8 +202,10 @@ export default function UtilitiesPage() {
                     </div>
 
                     <div className="rounded-xl border bg-card shadow-sm overflow-hidden">
-                        {isLoading ? (
-                            <div className="p-8 flex justify-center"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /></div>
+                        {error ? (
+                            <PageError message={error} onRetry={fetchAll} />
+                        ) : isLoading ? (
+                            <div className="divide-y">{Array.from({ length: 4 }).map((_, i) => <SkeletonRow key={i} cols={3} />)}</div>
                         ) : utilities.length === 0 ? (
                             <div className="p-12 text-center text-muted-foreground flex flex-col items-center">
                                 <Zap className="h-10 w-10 mb-2 opacity-20" />

@@ -5,6 +5,8 @@ import { createClient } from '@/utils/supabase/client'
 import { useAdmin } from '@/hooks/use-admin'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Trash2, Plus, Loader2 } from 'lucide-react'
+import { SkeletonRow } from '@/components/ui/skeleton'
+import { PageError } from '@/components/ui/page-error'
 
 type Member = {
     id: string
@@ -17,6 +19,7 @@ export default function MembersPage() {
     const [members, setMembers] = useState<Member[]>([])
     const [newMemberName, setNewMemberName] = useState('')
     const [isLoading, setIsLoading] = useState(true)
+    const [error, setError] = useState<string | null>(null)
     const [isSubmitting, setIsSubmitting] = useState(false)
     const supabase = createClient()
 
@@ -25,16 +28,17 @@ export default function MembersPage() {
     const fetchMembers = async () => {
         if (!adminId) return
         setIsLoading(true)
-        const { data, error } = await supabase
-            .from('members')
-            .select('*')
-            .eq('admin_id', adminId)
-            .order('created_at', { ascending: true })
-
-        if (!error && data) {
-            setMembers(data)
+        setError(null)
+        try {
+            const { data, error: fetchErr } = await supabase
+                .from('members').select('*').eq('admin_id', adminId).order('created_at', { ascending: true })
+            if (fetchErr) throw fetchErr
+            if (data) setMembers(data)
+        } catch {
+            setError('Failed to load members.')
+        } finally {
+            setIsLoading(false)
         }
-        setIsLoading(false)
     }
 
     useEffect(() => {
@@ -102,9 +106,11 @@ export default function MembersPage() {
             </form>
 
             <div className="rounded-xl border bg-card text-card-foreground shadow-sm overflow-hidden">
-                {isLoading ? (
-                    <div className="p-8 flex justify-center">
-                        <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+                {error ? (
+                    <PageError message={error} onRetry={fetchMembers} />
+                ) : isLoading ? (
+                    <div className="divide-y">
+                        {Array.from({ length: 4 }).map((_, i) => <SkeletonRow key={i} cols={3} />)}
                     </div>
                 ) : members.length === 0 ? (
                     <div className="p-8 text-center text-muted-foreground">

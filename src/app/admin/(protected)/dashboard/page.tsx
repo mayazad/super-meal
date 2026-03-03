@@ -4,6 +4,8 @@ import { useState, useEffect, useCallback } from 'react'
 import { createClient } from '@/utils/supabase/client'
 import { useAdmin } from '@/hooks/use-admin'
 import { motion, AnimatePresence } from 'framer-motion'
+import { SkeletonPage } from '@/components/ui/skeleton'
+import { PageError } from '@/components/ui/page-error'
 import { ChevronLeft, ChevronRight, Lock, Unlock, ExternalLink, TrendingUp, Copy, Check, AlertTriangle, Palette } from 'lucide-react'
 
 type MonthStats = {
@@ -43,6 +45,7 @@ export default function AdminDashboardPage() {
     const [stats, setStats] = useState<MonthStats | null>(null)
     const [yearlyData, setYearlyData] = useState<MonthStats[]>([])
     const [isLoading, setIsLoading] = useState(true)
+    const [error, setError] = useState<string | null>(null)
     const [isLocking, setIsLocking] = useState(false)
     const [showLockModal, setShowLockModal] = useState(false)
     const [membersCount, setMembersCount] = useState(0)
@@ -134,28 +137,30 @@ export default function AdminDashboardPage() {
     const loadAll = useCallback(async () => {
         if (!adminId) return
         setIsLoading(true)
-        const [{ count }, selectedStats, ...rest] = await Promise.all([
-            supabase.from('members').select('*', { count: 'exact', head: true }).eq('is_active', true).eq('admin_id', adminId),
-            fetchStats(selectedMonth, adminId),
-            ...months12.slice(1).map(m => fetchStats(m, adminId)),
-        ])
-        setMembersCount(count || 0)
-        setUserEmail(adminEmail ?? '')
-        setStats(selectedStats)
-        const allStats = [selectedStats, ...rest as MonthStats[]]
-        setYearlyData([...allStats].reverse())
+        setError(null)
+        try {
+            const [{ count }, selectedStats, ...rest] = await Promise.all([
+                supabase.from('members').select('*', { count: 'exact', head: true }).eq('is_active', true).eq('admin_id', adminId),
+                fetchStats(selectedMonth, adminId),
+                ...months12.slice(1).map(m => fetchStats(m, adminId)),
+            ])
+            setMembersCount(count || 0)
+            setUserEmail(adminEmail ?? '')
+            setStats(selectedStats)
+            const allStats = [selectedStats, ...rest as MonthStats[]]
+            setYearlyData([...allStats].reverse())
 
-        // Fetch current theme and broadcast message (global config, not per-admin)
-        const { data: globalSettingsData } = await supabase.from('app_settings').select('selected_theme, broadcast_message').eq('id', 'global_config').single()
-        if (globalSettingsData) {
-            setActiveThemeState(globalSettingsData.selected_theme as 'classic' | 'emerald' || 'classic')
-            if (globalSettingsData.broadcast_message) {
-                setBroadcastMsg(globalSettingsData.broadcast_message)
+            const { data: globalSettingsData } = await supabase.from('app_settings').select('selected_theme, broadcast_message').eq('id', 'global_config').single()
+            if (globalSettingsData) {
+                setActiveThemeState(globalSettingsData.selected_theme as 'classic' | 'emerald' || 'classic')
+                if (globalSettingsData.broadcast_message) setBroadcastMsg(globalSettingsData.broadcast_message)
             }
+            fetchDebtors(selectedMonth, adminId)
+        } catch {
+            setError('Could not load dashboard data. Check your connection and try again.')
+        } finally {
+            setIsLoading(false)
         }
-
-        setIsLoading(false)
-        fetchDebtors(selectedMonth, adminId)
     }, [selectedMonth, adminId, adminEmail]) // eslint-disable-line react-hooks/exhaustive-deps
 
     useEffect(() => { loadAll() }, [loadAll])
@@ -208,13 +213,9 @@ export default function AdminDashboardPage() {
 
     const maxExpense = Math.max(...yearlyData.map(d => d.totalExpenses), 1)
 
-    if (isLoading) {
-        return (
-            <div className="flex items-center justify-center min-h-[40vh]">
-                <div className="h-6 w-6 border-2 border-foreground border-t-transparent rounded-full animate-spin" />
-            </div>
-        )
-    }
+    if (error) return <PageError message={error} onRetry={loadAll} />
+
+    if (isLoading) return <SkeletonPage cards={4} rows={6} />
 
     return (
         <div className="space-y-8 max-w-5xl">

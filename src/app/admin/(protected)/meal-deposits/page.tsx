@@ -5,6 +5,8 @@ import { createClient } from '@/utils/supabase/client'
 import { useAdmin } from '@/hooks/use-admin'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Loader2, Calendar as CalendarIcon, Wallet, User as UserIcon } from 'lucide-react'
+import { SkeletonRow } from '@/components/ui/skeleton'
+import { PageError } from '@/components/ui/page-error'
 
 type Member = {
     id: string
@@ -25,6 +27,7 @@ export default function MealDepositsPage() {
     const [deposits, setDeposits] = useState<Deposit[]>([])
     const [members, setMembers] = useState<Member[]>([])
     const [isLoading, setIsLoading] = useState(true)
+    const [error, setError] = useState<string | null>(null)
     const [isSubmitting, setIsSubmitting] = useState(false)
     const supabase = createClient()
 
@@ -42,28 +45,20 @@ export default function MealDepositsPage() {
     const fetchData = async () => {
         if (!adminId) return
         setIsLoading(true)
-
-        const [membersResponse, depositsResponse] = await Promise.all([
-            supabase.from('members').select('id, name, is_active').eq('admin_id', adminId).order('name'),
-            supabase
-                .from('meal_deposits')
-                .select(`
-                    id, date, amount, month_year, member_id,
-                    members (name)
-                `)
-                .eq('month_year', monthFilter)
-                .eq('admin_id', adminId)
-                .order('date', { ascending: false })
-        ])
-
-        if (membersResponse.data) {
-            setMembers(membersResponse.data.filter(m => m.is_active))
+        setError(null)
+        try {
+            const [membersResponse, depositsResponse] = await Promise.all([
+                supabase.from('members').select('id, name, is_active').eq('admin_id', adminId).order('name'),
+                supabase.from('meal_deposits').select(`id, date, amount, month_year, member_id, members (name)`)
+                    .eq('month_year', monthFilter).eq('admin_id', adminId).order('date', { ascending: false })
+            ])
+            if (membersResponse.data) setMembers(membersResponse.data.filter(m => m.is_active))
+            if (depositsResponse.data) setDeposits(depositsResponse.data as unknown as Deposit[])
+        } catch {
+            setError('Failed to load deposit data.')
+        } finally {
+            setIsLoading(false)
         }
-        if (depositsResponse.data) {
-            setDeposits(depositsResponse.data as unknown as Deposit[])
-        }
-
-        setIsLoading(false)
     }
 
     useEffect(() => {
@@ -190,10 +185,10 @@ export default function MealDepositsPage() {
                     </div>
 
                     <div className="rounded-xl border bg-card shadow-sm overflow-hidden">
-                        {isLoading ? (
-                            <div className="p-8 flex justify-center">
-                                <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-                            </div>
+                        {error ? (
+                            <PageError message={error} onRetry={fetchData} />
+                        ) : isLoading ? (
+                            <div className="divide-y">{Array.from({ length: 4 }).map((_, i) => <SkeletonRow key={i} cols={3} />)}</div>
                         ) : deposits.length === 0 ? (
                             <div className="p-12 text-center text-muted-foreground flex flex-col items-center">
                                 <Wallet className="h-10 w-10 mb-2 opacity-20" />

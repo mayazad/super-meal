@@ -5,6 +5,8 @@ import { createClient } from '@/utils/supabase/client'
 import { useAdmin } from '@/hooks/use-admin'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Loader2, Save, User as UserIcon, Minus, Plus, BookOpen } from 'lucide-react'
+import { SkeletonRow } from '@/components/ui/skeleton'
+import { PageError } from '@/components/ui/page-error'
 
 type Member = { id: string; name: string }
 
@@ -23,6 +25,7 @@ export default function MealsPage() {
     const [ledger, setLedger] = useState<LedgerRow[]>([])
     const [isLoading, setIsLoading] = useState(true)
     const [isLoadingLedger, setIsLoadingLedger] = useState(false)
+    const [error, setError] = useState<string | null>(null)
     const [isSubmitting, setIsSubmitting] = useState(false)
     const [saveSuccess, setSaveSuccess] = useState(false)
 
@@ -39,24 +42,28 @@ export default function MealsPage() {
     const fetchData = useCallback(async () => {
         if (!adminId) return
         setIsLoading(true)
-        const [{ data: membersData }, { data: mealsData }] = await Promise.all([
-            supabase.from('members').select('id, name').eq('is_active', true).eq('admin_id', adminId).order('name'),
-            supabase.from('daily_meals')
-                .select('member_id, regular_meals, guest_meals')
-                .eq('date', dateFilter)
-                .eq('admin_id', adminId),
-        ])
-
-        const mems = membersData || []
-        setMembers(mems)
-
-        const mealMap: Record<string, { regular: number; guest: number }> = {}
-        mems.forEach(m => {
-            const rec = mealsData?.find(r => r.member_id === m.id)
-            mealMap[m.id] = rec ? { regular: rec.regular_meals, guest: rec.guest_meals } : { regular: 0, guest: 0 }
-        })
-        setMeals(mealMap)
-        setIsLoading(false)
+        setError(null)
+        try {
+            const [{ data: membersData }, { data: mealsData }] = await Promise.all([
+                supabase.from('members').select('id, name').eq('is_active', true).eq('admin_id', adminId).order('name'),
+                supabase.from('daily_meals')
+                    .select('member_id, regular_meals, guest_meals')
+                    .eq('date', dateFilter)
+                    .eq('admin_id', adminId),
+            ])
+            const mems = membersData || []
+            setMembers(mems)
+            const mealMap: Record<string, { regular: number; guest: number }> = {}
+            mems.forEach(m => {
+                const rec = mealsData?.find(r => r.member_id === m.id)
+                mealMap[m.id] = rec ? { regular: rec.regular_meals, guest: rec.guest_meals } : { regular: 0, guest: 0 }
+            })
+            setMeals(mealMap)
+        } catch {
+            setError('Failed to load meal data.')
+        } finally {
+            setIsLoading(false)
+        }
     }, [dateFilter, adminId]) // eslint-disable-line react-hooks/exhaustive-deps
 
     // ── Fetch monthly history for the ledger table ───────────────────────────────
@@ -155,9 +162,11 @@ export default function MealsPage() {
                     <span className="text-xl font-bold">{totalMealsToday} total</span>
                 </div>
 
-                {isLoading ? (
-                    <div className="p-12 flex justify-center">
-                        <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+                {error ? (
+                    <PageError message={error} onRetry={fetchData} />
+                ) : isLoading ? (
+                    <div className="p-4 space-y-2">
+                        {Array.from({ length: 4 }).map((_, i) => <SkeletonRow key={i} cols={3} />)}
                     </div>
                 ) : members.length === 0 ? (
                     <div className="p-12 text-center text-muted-foreground flex flex-col items-center">

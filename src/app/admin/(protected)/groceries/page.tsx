@@ -5,6 +5,8 @@ import { createClient } from '@/utils/supabase/client'
 import { useAdmin } from '@/hooks/use-admin'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Loader2, Calendar as CalendarIcon, ShoppingBag, User as UserIcon, Trash2 } from 'lucide-react'
+import { SkeletonRow } from '@/components/ui/skeleton'
+import { PageError } from '@/components/ui/page-error'
 
 type Member = { id: string; name: string }
 
@@ -21,6 +23,7 @@ export default function GroceriesPage() {
     const [groceries, setGroceries] = useState<Grocery[]>([])
     const [members, setMembers] = useState<Member[]>([])
     const [isLoading, setIsLoading] = useState(true)
+    const [error, setError] = useState<string | null>(null)
     const [isSubmitting, setIsSubmitting] = useState(false)
     // Per-row delete confirmation state: id → 'idle' | 'confirm'
     const [deleteConfirm, setDeleteConfirm] = useState<Record<string, boolean>>({})
@@ -40,17 +43,20 @@ export default function GroceriesPage() {
     const fetchData = useCallback(async () => {
         if (!adminId) return
         setIsLoading(true)
-        const [{ data: groceryData }, { data: memberData }] = await Promise.all([
-            supabase.from('groceries').select('*').eq('month_year', monthFilter).eq('admin_id', adminId).order('date', { ascending: false }),
-            supabase.from('members').select('id, name').eq('is_active', true).eq('admin_id', adminId).order('name'),
-        ])
-        setGroceries(groceryData || [])
-        setMembers(memberData || [])
-        // Default purchasedBy to first member if not set
-        if (memberData && memberData.length > 0 && !purchasedBy) {
-            setPurchasedBy(memberData[0].id)
+        setError(null)
+        try {
+            const [{ data: groceryData }, { data: memberData }] = await Promise.all([
+                supabase.from('groceries').select('*').eq('month_year', monthFilter).eq('admin_id', adminId).order('date', { ascending: false }),
+                supabase.from('members').select('id, name').eq('is_active', true).eq('admin_id', adminId).order('name'),
+            ])
+            setGroceries(groceryData || [])
+            setMembers(memberData || [])
+            if (memberData && memberData.length > 0 && !purchasedBy) setPurchasedBy(memberData[0].id)
+        } catch {
+            setError('Failed to load grocery data.')
+        } finally {
+            setIsLoading(false)
         }
-        setIsLoading(false)
     }, [monthFilter, adminId]) // eslint-disable-line react-hooks/exhaustive-deps
 
     useEffect(() => { fetchData() }, [fetchData])
@@ -190,8 +196,10 @@ export default function GroceriesPage() {
                     </div>
 
                     <div className="rounded-xl border bg-card shadow-sm overflow-hidden">
-                        {isLoading ? (
-                            <div className="p-8 flex justify-center"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /></div>
+                        {error ? (
+                            <PageError message={error} onRetry={fetchData} />
+                        ) : isLoading ? (
+                            <div className="divide-y">{Array.from({ length: 4 }).map((_, i) => <SkeletonRow key={i} cols={4} />)}</div>
                         ) : groceries.length === 0 ? (
                             <div className="p-12 text-center text-muted-foreground flex flex-col items-center gap-2">
                                 <ShoppingBag className="h-10 w-10 opacity-20" />
