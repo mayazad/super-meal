@@ -25,6 +25,7 @@ export default function GroceriesPage() {
     const [isLoading, setIsLoading] = useState(true)
     const [error, setError] = useState<string | null>(null)
     const [isSubmitting, setIsSubmitting] = useState(false)
+    const [isLocked, setIsLocked] = useState(false)
     // Per-row delete confirmation state: id → 'idle' | 'confirm'
     const [deleteConfirm, setDeleteConfirm] = useState<Record<string, boolean>>({})
 
@@ -45,12 +46,14 @@ export default function GroceriesPage() {
         setIsLoading(true)
         setError(null)
         try {
-            const [{ data: groceryData }, { data: memberData }] = await Promise.all([
+            const [{ data: groceryData }, { data: memberData }, { data: lockedData }] = await Promise.all([
                 supabase.from('groceries').select('*').eq('month_year', monthFilter).eq('admin_id', adminId).order('date', { ascending: false }),
                 supabase.from('members').select('id, name').eq('is_active', true).eq('admin_id', adminId).order('name'),
+                supabase.from('locked_months').select('id').eq('month_year', monthFilter).eq('admin_id', adminId)
             ])
             setGroceries(groceryData || [])
             setMembers(memberData || [])
+            setIsLocked((lockedData?.length ?? 0) > 0)
             if (memberData && memberData.length > 0 && !purchasedBy) setPurchasedBy(memberData[0].id)
         } catch {
             setError('Failed to load grocery data.')
@@ -63,7 +66,7 @@ export default function GroceriesPage() {
 
     const handleAddGrocery = async (e: React.FormEvent) => {
         e.preventDefault()
-        if (!itemName.trim() || !cost || isNaN(Number(cost))) return
+        if (isLocked || !itemName.trim() || !cost || isNaN(Number(cost))) return
         setIsSubmitting(true)
 
         const month_year = date.substring(0, 7)
@@ -104,6 +107,7 @@ export default function GroceriesPage() {
     }
 
     const handleDeleteClick = (id: string) => {
+        if (isLocked) return
         if (deleteConfirm[id]) {
             // Second click — actually delete
             handleDeleteConfirmed(id)
@@ -139,6 +143,13 @@ export default function GroceriesPage() {
                     className="flex h-10 rounded-md border border-input bg-background px-3 text-sm"
                 />
             </div>
+
+            {isLocked && (
+                <div className="rounded-lg bg-amber-50 dark:bg-amber-900/20 text-amber-800 dark:text-amber-200 p-4 text-sm font-medium border border-amber-200 dark:border-amber-800/50 flex items-center gap-3">
+                    <ShoppingBag className="h-5 w-5 shrink-0" />
+                    <span>This month ({monthFilter}) is locked for settlement. You cannot add or delete groceries.</span>
+                </div>
+            )}
 
             <div className="grid md:grid-cols-3 gap-8">
                 {/* ADD FORM */}
@@ -180,10 +191,11 @@ export default function GroceriesPage() {
                                 </p>
                             )}
                         </div>
-
-                        <button type="submit" disabled={isSubmitting}
-                            className="w-full inline-flex h-10 items-center justify-center rounded-md bg-primary px-4 text-sm font-medium text-primary-foreground disabled:opacity-50">
-                            {isSubmitting ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Save Record'}
+                        <button
+                            type="submit"
+                            disabled={isSubmitting || isLocked}
+                            className="w-full flex items-center justify-center gap-2 h-10 bg-emerald-500 hover:bg-emerald-600 text-white font-medium rounded-md transition-colors disabled:opacity-50"
+                        >    {isSubmitting ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Save Record'}
                         </button>
                     </form>
                 </div>
@@ -252,8 +264,11 @@ export default function GroceriesPage() {
                                                                 animate={{ opacity: 1 }}
                                                                 exit={{ opacity: 0 }}
                                                                 onClick={() => handleDeleteClick(item.id)}
-                                                                className="p-1.5 rounded-md text-muted-foreground hover:text-red-500 hover:bg-muted transition-colors"
-                                                                title="Delete"
+                                                                disabled={isLocked}
+                                                                className={`p-2 rounded-md transition-colors flex items-center gap-1.5 shrink-0 disabled:opacity-50 ${deleteConfirm[item.id]
+                                                                    ? 'bg-red-500 text-white hover:bg-red-600'
+                                                                    : 'text-muted-foreground hover:bg-red-100 hover:text-red-500 dark:hover:bg-red-900/20'
+                                                                    }`}
                                                             >
                                                                 <Trash2 className="h-4 w-4" />
                                                             </motion.button>

@@ -32,6 +32,7 @@ export default function UtilitiesPage() {
     const [isLoading, setIsLoading] = useState(true)
     const [error, setError] = useState<string | null>(null)
     const [isSubmitting, setIsSubmitting] = useState(false)
+    const [isLocked, setIsLocked] = useState(false)
     const supabase = createClient()
 
     const [type, setType] = useState('')
@@ -48,13 +49,15 @@ export default function UtilitiesPage() {
         setIsLoading(true)
         setError(null)
         try {
-            const [{ data: utilitiesData }, { data: membersData }, { data: paymentsData }] = await Promise.all([
+            const [{ data: utilitiesData }, { data: membersData }, { data: paymentsData }, { data: lockedData }] = await Promise.all([
                 supabase.from('utilities').select('*').eq('month_year', monthFilter).eq('admin_id', adminId).order('created_at', { ascending: true }),
                 supabase.from('members').select('id, name').eq('is_active', true).eq('admin_id', adminId).order('name'),
                 supabase.from('utility_payments').select('utility_id, member_id, paid').eq('admin_id', adminId),
+                supabase.from('locked_months').select('id').eq('month_year', monthFilter).eq('admin_id', adminId)
             ])
             setUtilities(utilitiesData || [])
             setMembers(membersData || [])
+            setIsLocked((lockedData?.length ?? 0) > 0)
             const paidSet = new Set<PaymentKey>();
             (paymentsData || []).forEach(p => { if (p.paid) paidSet.add(`${p.utility_id}:${p.member_id}`) })
             setPayments(paidSet)
@@ -71,7 +74,7 @@ export default function UtilitiesPage() {
 
     const handleAddUtility = async (e: React.FormEvent) => {
         e.preventDefault()
-        if (!type.trim() || !cost || isNaN(Number(cost))) return
+        if (isLocked || !type.trim() || !cost || isNaN(Number(cost))) return
         setIsSubmitting(true)
 
         const payload: Record<string, unknown> = {
@@ -93,6 +96,7 @@ export default function UtilitiesPage() {
     }
 
     const handleDeleteClick = (id: string) => {
+        if (isLocked) return
         if (deleteConfirm[id]) {
             handleDeleteConfirmed(id)
         } else {
@@ -108,6 +112,7 @@ export default function UtilitiesPage() {
     }
 
     const handleToggle = async (utilityId: string, memberId: string) => {
+        if (isLocked) return
         const key: PaymentKey = `${utilityId}:${memberId}`
         const isPaid = payments.has(key)
         setToggling(key)
@@ -156,7 +161,13 @@ export default function UtilitiesPage() {
                 />
             </div>
 
-            {/* Add Bill + Bill List */}
+            {isLocked && (
+                <div className="rounded-lg bg-amber-50 dark:bg-amber-900/20 text-amber-800 dark:text-amber-200 p-4 text-sm font-medium border border-amber-200 dark:border-amber-800/50 flex items-center gap-3">
+                    <Zap className="h-5 w-5 shrink-0" />
+                    <span>This month ({monthFilter}) is locked for settlement. You cannot add, edit, or delete utilities.</span>
+                </div>
+            )}
+
             <div className="grid md:grid-cols-3 gap-8">
                 {/* Form */}
                 <div className="md:col-span-1 border rounded-xl p-6 bg-card shadow-sm h-fit">
@@ -186,8 +197,9 @@ export default function UtilitiesPage() {
                             />
                         </div>
                         <button
-                            type="submit" disabled={isSubmitting}
-                            className="w-full inline-flex h-10 items-center justify-center rounded-md bg-primary px-4 text-sm font-medium text-primary-foreground disabled:opacity-50"
+                            type="submit"
+                            disabled={isSubmitting || isLocked}
+                            className="w-full flex items-center justify-center gap-2 h-10 bg-emerald-500 hover:bg-emerald-600 text-white font-medium rounded-md transition-colors disabled:opacity-50"
                         >
                             {isSubmitting ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Log Bill'}
                         </button>
@@ -234,7 +246,12 @@ export default function UtilitiesPage() {
                                                 <span className="font-bold">{Number(item.cost).toFixed(2)} Tk</span>
                                                 <button
                                                     onClick={() => handleDeleteClick(item.id)}
-                                                    className={`text-xs font-medium transition-colors ${deleteConfirm[item.id] ? 'text-red-500 font-bold border border-red-400 rounded-md px-2 py-0.5' : 'text-muted-foreground hover:text-red-500 hover:underline'}`}
+                                                    disabled={isLocked}
+                                                    className={`p-2 rounded-md transition-colors flex items-center gap-1.5 shrink-0 text-sm font-medium disabled:opacity-50
+                                                        ${deleteConfirm[item.id]
+                                                            ? 'bg-red-500 text-white hover:bg-red-600'
+                                                            : 'text-muted-foreground hover:bg-red-100 hover:text-red-500 dark:hover:bg-red-900/20'
+                                                        }`}
                                                 >
                                                     {deleteConfirm[item.id] ? 'Confirm?' : 'Delete'}
                                                 </button>
@@ -287,17 +304,18 @@ export default function UtilitiesPage() {
                                                 const key: PaymentKey = `${bill.id}:${member.id}`
                                                 const isPaid = payments.has(key)
                                                 const isTogglingThis = toggling === key
+                                                const allowToggle = !isLocked && !isTogglingThis
 
                                                 return (
                                                     <td key={member.id} className="p-4 text-center">
                                                         <button
-                                                            onClick={() => handleToggle(bill.id, member.id)}
-                                                            disabled={isTogglingThis}
+                                                            onClick={allowToggle ? () => handleToggle(bill.id, member.id) : undefined}
+                                                            disabled={!allowToggle}
+                                                            title={isLocked ? "Month locked" : isPaid ? "Mark Unpaid" : "Mark Paid"}
                                                             className={`inline-flex items-center justify-center w-10 h-10 rounded-full transition-all ${isPaid
                                                                 ? 'bg-foreground text-background'
                                                                 : 'bg-muted hover:bg-muted/80 text-muted-foreground'
                                                                 } disabled:opacity-50`}
-                                                            title={isPaid ? `${member.name} has paid` : `Mark ${member.name} as paid`}
                                                         >
                                                             {isTogglingThis ? (
                                                                 <Loader2 className="h-4 w-4 animate-spin" />

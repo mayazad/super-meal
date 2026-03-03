@@ -28,6 +28,7 @@ export default function MealsPage() {
     const [error, setError] = useState<string | null>(null)
     const [isSubmitting, setIsSubmitting] = useState(false)
     const [saveSuccess, setSaveSuccess] = useState(false)
+    const [isLocked, setIsLocked] = useState(false)
 
     const supabase = createClient()
     const today = new Date().toISOString().split('T')[0]
@@ -44,15 +45,17 @@ export default function MealsPage() {
         setIsLoading(true)
         setError(null)
         try {
-            const [{ data: membersData }, { data: mealsData }] = await Promise.all([
+            const [{ data: membersData }, { data: mealsData }, { data: lockedData }] = await Promise.all([
                 supabase.from('members').select('id, name').eq('is_active', true).eq('admin_id', adminId).order('name'),
                 supabase.from('daily_meals')
                     .select('member_id, regular_meals, guest_meals')
                     .eq('date', dateFilter)
                     .eq('admin_id', adminId),
+                supabase.from('locked_months').select('id').eq('month_year', monthYear).eq('admin_id', adminId)
             ])
             const mems = membersData || []
             setMembers(mems)
+            setIsLocked((lockedData?.length ?? 0) > 0)
             const mealMap: Record<string, { regular: number; guest: number }> = {}
             mems.forEach(m => {
                 const rec = mealsData?.find(r => r.member_id === m.id)
@@ -96,13 +99,14 @@ export default function MealsPage() {
     }, [fetchLedger]) // eslint-disable-line react-hooks/exhaustive-deps
 
     const handleMealChange = (memberId: string, type: 'regular' | 'guest', inc: number) => {
+        if (isLocked) return
         const cur = meals[memberId] || { regular: 0, guest: 0 }
         setMeals({ ...meals, [memberId]: { ...cur, [type]: Math.max(0, cur[type] + inc) } })
     }
 
     // ── Save — upsert so corrections are always possible ─────────────────────────
     const handleSaveAll = async () => {
-        if (!adminId) return
+        if (!adminId || isLocked) return
         setIsSubmitting(true)
         const payload = members.map(m => ({
             member_id: m.id,
@@ -162,6 +166,13 @@ export default function MealsPage() {
                     <span className="text-xl font-bold">{totalMealsToday} total</span>
                 </div>
 
+                {isLocked && (
+                    <div className="rounded-lg bg-amber-50 dark:bg-amber-900/20 text-amber-800 dark:text-amber-200 p-4 text-sm font-medium border border-amber-200 dark:border-amber-800/50 flex items-center gap-3">
+                        <BookOpen className="h-5 w-5 shrink-0" />
+                        <span>This month ({monthYear}) has been locked for settlement. You cannot edit meals. Unlock it from the Dashboard if needed.</span>
+                    </div>
+                )}
+
                 {error ? (
                     <PageError message={error} onRetry={fetchData} />
                 ) : isLoading ? (
@@ -177,39 +188,43 @@ export default function MealsPage() {
                     <div className="p-6">
                         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
                             <AnimatePresence>
-                                {members.map((member) => (
-                                    <motion.div
-                                        key={member.id}
-                                        initial={{ opacity: 0, scale: 0.95 }}
-                                        animate={{ opacity: 1, scale: 1 }}
-                                        className="flex flex-col space-y-3 p-4 border rounded-lg bg-background"
-                                    >
-                                        <div className="flex items-center gap-2 font-medium">
-                                            <UserIcon className="h-4 w-4 text-muted-foreground" />
-                                            {member.name}
-                                        </div>
-
-                                        {(['regular', 'guest'] as const).map(type => (
-                                            <div key={type} className="flex items-center justify-between border rounded-md p-1 bg-muted/10">
-                                                <span className="text-xs font-medium w-14 text-center capitalize">{type}</span>
-                                                <button
-                                                    onClick={() => handleMealChange(member.id, type, -1)}
-                                                    disabled={(meals[member.id]?.[type] || 0) === 0}
-                                                    className="p-2 hover:bg-muted rounded-md transition-colors disabled:opacity-30 disabled:pointer-events-none min-w-[44px] min-h-[44px] flex items-center justify-center"
-                                                >
-                                                    <Minus className="h-4 w-4" />
-                                                </button>
-                                                <span className="text-lg font-bold w-8 text-center">{meals[member.id]?.[type] || 0}</span>
-                                                <button
-                                                    onClick={() => handleMealChange(member.id, type, 1)}
-                                                    className="p-2 hover:bg-muted rounded-md transition-colors min-w-[44px] min-h-[44px] flex items-center justify-center"
-                                                >
-                                                    <Plus className="h-4 w-4" />
-                                                </button>
+                                {members.map((member) => {
+                                    const cur = meals[member.id] || { regular: 0, guest: 0 };
+                                    return (
+                                        <motion.div
+                                            key={member.id}
+                                            initial={{ opacity: 0, scale: 0.95 }}
+                                            animate={{ opacity: 1, scale: 1 }}
+                                            className="flex flex-col space-y-3 p-4 border rounded-lg bg-background"
+                                        >
+                                            <div className="flex items-center gap-2 font-medium">
+                                                <UserIcon className="h-4 w-4 text-muted-foreground" />
+                                                {member.name}
                                             </div>
-                                        ))}
-                                    </motion.div>
-                                ))}
+
+                                            {(['regular', 'guest'] as const).map(type => (
+                                                <div key={type} className="flex items-center justify-between border rounded-md p-1 bg-muted/10">
+                                                    <span className="text-xs font-medium w-14 text-center capitalize">{type}</span>
+                                                    <button
+                                                        onClick={() => handleMealChange(member.id, type, -1)}
+                                                        disabled={cur[type] === 0 || isLocked}
+                                                        className="p-2 hover:bg-muted rounded-md transition-colors disabled:opacity-30 disabled:pointer-events-none min-w-[44px] min-h-[44px] flex items-center justify-center"
+                                                    >
+                                                        <Minus className="h-4 w-4" />
+                                                    </button>
+                                                    <span className="text-lg font-bold w-8 text-center">{cur[type] || 0}</span>
+                                                    <button
+                                                        onClick={() => handleMealChange(member.id, type, 1)}
+                                                        disabled={isLocked}
+                                                        className="p-2 hover:bg-muted rounded-md transition-colors min-w-[44px] min-h-[44px] flex items-center justify-center"
+                                                    >
+                                                        <Plus className="h-4 w-4" />
+                                                    </button>
+                                                </div>
+                                            ))}
+                                        </motion.div>
+                                    );
+                                })}
                             </AnimatePresence>
                         </div>
 
@@ -229,7 +244,7 @@ export default function MealsPage() {
                             </AnimatePresence>
                             <button
                                 onClick={handleSaveAll}
-                                disabled={isSubmitting}
+                                disabled={isSubmitting || members.length === 0 || isLocked}
                                 className="inline-flex h-11 items-center justify-center rounded-md bg-primary px-8 text-sm font-medium text-primary-foreground disabled:opacity-50 transition-colors hover:bg-primary/90"
                             >
                                 {isSubmitting ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Save className="h-4 w-4 mr-2" />}

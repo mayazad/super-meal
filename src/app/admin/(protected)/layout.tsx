@@ -3,7 +3,7 @@ import { redirect } from 'next/navigation'
 import Link from 'next/link'
 import AdminLogoutButton from '../logout-button'
 import MobileNav from './mobile-nav'
-import { LayoutDashboard, Users, Utensils, ShoppingCart, Zap, Wallet, Landmark, ShieldCheck, Calculator, Archive } from 'lucide-react'
+import { LayoutDashboard, Users, Utensils, ShoppingCart, Zap, Wallet, Landmark, ShieldCheck, Calculator, Archive, Activity } from 'lucide-react'
 
 export default async function AdminLayout({
     children,
@@ -26,6 +26,7 @@ export default async function AdminLayout({
         { name: 'Utility Deposits', href: '/admin/utility-deposits', icon: Landmark },
         { name: 'Utility Bills', href: '/admin/utilities', icon: Zap },
         { name: 'Settlement', href: '/admin/settlement', icon: Calculator },
+        { name: 'Audit Logs', href: '/admin/activity', icon: Activity },
         { name: 'History', href: '/admin/history', icon: Archive },
     ]
 

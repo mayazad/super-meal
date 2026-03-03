@@ -80,7 +80,8 @@ The Meal budget is strictly separated from the Utility budget.
 ### Adding Meal Deposits
 1. Go to **Meal Deposits**.
 2. When a member hands you cash (e.g., 2000 Tk advance for the month's food), log it here.
-3. Select the member, enter the amount, and save.
+3. Select the member, enter the amount, and add an optional **Note** (e.g., "bKash txn 1234").
+4. Click Save.
 
 ---
 
@@ -114,6 +115,7 @@ This is the magic of SuperMeal.
    - **Amount Owed (Red):** The member ate more than they deposited and must pay you this cash.
    - **Cash on Hand:** Shows exactly how much physical cash should be left in your manager drawer right now to distribute the refunds.
 4. **Print / PDF:** Click the Print icon in the top right to generate a clean, paper-friendly invoice to stick on your fridge.
+5. **Share to WhatsApp:** Click the "Share Summary" button to automatically copy the final math and send it directly to your mess WhatsApp group chat!
 
 ---
 
@@ -124,7 +126,7 @@ To keep the application fast and calculations protected, there are two specializ
 ### 1. Lock Month (Soft Protection)
 - Available all month.
 - Click **Lock Month** on the Dashboard.
-- This prevents anyone (even you) from accidentally adding meals, groceries, or deposits to this month.
+- This prevents anyone (even you) from accidentally adding or modifying meals, groceries, utility bills, or deposits for this month.
 - Useful if you finalized calculations on the 30th but the new month hasn't officially started. You can "Unlock" it at any time.
 
 ### 2. Close Month & Settle (Hard Reset)
@@ -146,7 +148,14 @@ To keep the application fast and calculations protected, there are two specializ
 
 ---
 
-## 11. Settings & Customization
+## 11. Activity Feed / Audit Logs
+The **Audit Logs** tab acts as a master chronological timeline of all financial transactions within the current month.
+- It unifies Meal Deposits, Utility Deposits, Groceries, and Utility Bills marked as paid.
+- It displays exact system entry timestamps alongside logical log dates, preventing disputes regarding *when* an admin actually entered the data versus what date they attached to it.
+
+---
+
+## 12. Settings & Customization
 1. At the bottom of the sidebar, click the **Settings (Gear)** icon.
 2. **Themes:** Switch between the standard "Classic White/Dark" theme and the vibrant "Emerald" theme. The theme saves instantly to your profile.
 3. **Broadcast Message:** Type a message here and hit save. It will appear as a scrolling marquee banner across the top of the dashboard for everyone viewing the Public Link (e.g., to announce "Bring deposit money by Friday!").

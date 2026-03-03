@@ -20,6 +20,7 @@ type Deposit = {
     date: string
     amount: number
     month_year: string
+    note?: string | null
     members?: { name: string }
 }
 
@@ -29,12 +30,14 @@ export default function UtilityDepositsPage() {
     const [isLoading, setIsLoading] = useState(true)
     const [error, setError] = useState<string | null>(null)
     const [isSubmitting, setIsSubmitting] = useState(false)
+    const [isLocked, setIsLocked] = useState(false)
     const supabase = createClient()
 
     // Form state
     const [date, setDate] = useState(new Date().toISOString().split('T')[0])
     const [memberId, setMemberId] = useState('')
     const [amount, setAmount] = useState('')
+    const [note, setNote] = useState('')
 
     // Filter state
     const currentMonthFilter = `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, '0')}`
@@ -47,13 +50,15 @@ export default function UtilityDepositsPage() {
         setIsLoading(true)
         setError(null)
         try {
-            const [membersResponse, depositsResponse] = await Promise.all([
+            const [membersResponse, depositsResponse, lockedResponse] = await Promise.all([
                 supabase.from('members').select('id, name, is_active').eq('is_active', true).eq('admin_id', adminId).order('name'),
-                supabase.from('utility_deposits').select(`id, date, amount, month_year, member_id, members (name)`)
-                    .eq('month_year', monthFilter).eq('admin_id', adminId).order('date', { ascending: false })
+                supabase.from('utility_deposits').select(`id, date, amount, month_year, note, member_id, members (name)`)
+                    .eq('month_year', monthFilter).eq('admin_id', adminId).order('date', { ascending: false }),
+                supabase.from('locked_months').select('id').eq('month_year', monthFilter).eq('admin_id', adminId)
             ])
             if (membersResponse.data) setMembers(membersResponse.data.filter(m => m.is_active))
             if (depositsResponse.data) setDeposits(depositsResponse.data as unknown as Deposit[])
+            setIsLocked((lockedResponse.data?.length ?? 0) > 0)
         } catch {
             setError('Failed to load utility deposit data.')
         } finally {
@@ -67,7 +72,7 @@ export default function UtilityDepositsPage() {
 
     const handleAddDeposit = async (e: React.FormEvent) => {
         e.preventDefault()
-        if (!memberId || !amount || isNaN(Number(amount))) return
+        if (isLocked || !memberId || !amount || isNaN(Number(amount))) return
 
         setIsSubmitting(true)
         const month_year = date.substring(0, 7)
@@ -79,11 +84,13 @@ export default function UtilityDepositsPage() {
                 date,
                 amount: Number(amount),
                 month_year,
+                note: note.trim() || null,
                 admin_id: adminId
             }])
 
         if (!error) {
             setAmount('')
+            setNote('')
             if (month_year === monthFilter) {
                 fetchData()
             }
@@ -94,7 +101,7 @@ export default function UtilityDepositsPage() {
     }
 
     const handleDelete = async (id: string) => {
-        if (!confirm('Delete this deposit entry?')) return
+        if (isLocked || !confirm('Delete this deposit entry?')) return
 
         const { error } = await supabase.from('utility_deposits').delete().eq('id', id)
         if (!error) {
@@ -121,6 +128,13 @@ export default function UtilityDepositsPage() {
                     className="flex h-10 rounded-md border border-input bg-background px-3 text-sm ring-offset-background"
                 />
             </div>
+
+            {isLocked && (
+                <div className="rounded-lg bg-amber-50 dark:bg-amber-900/20 text-amber-800 dark:text-amber-200 p-4 text-sm font-medium border border-amber-200 dark:border-amber-800/50 flex items-center gap-3">
+                    <Landmark className="h-5 w-5 shrink-0" />
+                    <span>This month ({monthFilter}) is locked for settlement. You cannot add or delete utility deposits.</span>
+                </div>
+            )}
 
             <div className="grid md:grid-cols-3 gap-8">
                 {/* ADD NEW LOG FORM */}
@@ -167,10 +181,21 @@ export default function UtilityDepositsPage() {
                             />
                         </div>
 
+                        <div className="space-y-2">
+                            <label className="text-sm font-medium text-muted-foreground">Note (Optional)</label>
+                            <input
+                                type="text"
+                                placeholder="e.g. Cash handed to manager"
+                                value={note}
+                                onChange={(e) => setNote(e.target.value)}
+                                className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                            />
+                        </div>
+
                         <button
                             type="submit"
-                            disabled={isSubmitting || members.length === 0}
-                            className="w-full inline-flex h-10 items-center justify-center rounded-md bg-primary px-4 text-sm font-medium text-primary-foreground disabled:opacity-50"
+                            disabled={isSubmitting || isLocked}
+                            className="w-full h-10 bg-emerald-500 hover:bg-emerald-600 text-white font-medium rounded-md transition-colors disabled:opacity-50 mt-2 flex items-center justify-center gap-2"
                         >
                             {isSubmitting ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Save Deposit'}
                         </button>
@@ -197,9 +222,9 @@ export default function UtilityDepositsPage() {
                         ) : (
                             <div className="divide-y relative">
                                 <AnimatePresence>
-                                    {deposits.map((item) => (
+                                    {deposits.map((d) => (
                                         <motion.div
-                                            key={item.id}
+                                            key={d.id}
                                             initial={{ opacity: 0, x: -10 }}
                                             animate={{ opacity: 1, x: 0 }}
                                             exit={{ opacity: 0, height: 0 }}
@@ -210,17 +235,25 @@ export default function UtilityDepositsPage() {
                                                     <UserIcon className="h-5 w-5 text-muted-foreground" />
                                                 </div>
                                                 <div>
-                                                    <p className="font-semibold">{item.members?.name}</p>
-                                                    <p className="text-sm text-muted-foreground">
-                                                        {new Date(item.date).toLocaleDateString()}
-                                                    </p>
+                                                    <p className="font-semibold">{d.members?.name}</p>
+                                                    <div className="flex items-center gap-2">
+                                                        <p className="text-sm text-muted-foreground">
+                                                            {new Date(d.date).toLocaleDateString()}
+                                                        </p>
+                                                        {d.note && (
+                                                            <span className="text-[10px] font-medium bg-muted px-1.5 py-0.5 rounded text-muted-foreground max-w-[120px] truncate" title={d.note}>
+                                                                {d.note}
+                                                            </span>
+                                                        )}
+                                                    </div>
                                                 </div>
                                             </div>
                                             <div className="flex items-center gap-4">
-                                                <span className="font-bold">{Number(item.amount).toFixed(2)} Tk</span>
+                                                <span className="font-bold">{Number(d.amount).toFixed(2)} Tk</span>
                                                 <button
-                                                    onClick={() => handleDelete(item.id)}
-                                                    className="text-xs text-muted-foreground hover:text-red-500 hover:underline"
+                                                    onClick={() => handleDelete(d.id)}
+                                                    disabled={isLocked}
+                                                    className="text-xs text-muted-foreground hover:text-red-500 hover:underline disabled:opacity-50 disabled:pointer-events-none"
                                                 >
                                                     Delete
                                                 </button>
