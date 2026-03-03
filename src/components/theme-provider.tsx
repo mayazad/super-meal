@@ -13,36 +13,49 @@ export default function ThemeProvider({ children }: Props) {
     }
 
     useEffect(() => {
-        // 1. Fetch the current theme on mount
-        supabase
-            .from('app_settings')
-            .select('selected_theme')
-            .eq('id', 'global_config')
-            .single()
-            .then(({ data }) => {
-                if (data?.selected_theme) applyTheme(data.selected_theme)
-            })
+        // 1. Get the current user, then load their personal theme from profiles
+        supabase.auth.getUser().then(({ data: { user } }) => {
+            if (!user) return
+            supabase
+                .from('profiles')
+                .select('selected_theme')
+                .eq('id', user.id)
+                .single()
+                .then(({ data }) => {
+                    if (data?.selected_theme) applyTheme(data.selected_theme)
+                })
+        })
 
-        // 2. Subscribe to realtime changes so all screens update instantly
-        const channel = supabase
-            .channel('theme-changes')
-            .on(
-                'postgres_changes',
-                {
-                    event: 'UPDATE',
-                    schema: 'public',
-                    table: 'app_settings',
-                    filter: 'id=eq.global_config',
-                },
-                (payload) => {
-                    const newTheme = payload.new?.selected_theme
-                    if (newTheme) applyTheme(newTheme)
-                }
-            )
-            .subscribe()
+        // 2. Subscribe to realtime changes on the user's own profile row
+        const setupChannel = async () => {
+            const { data: { user } } = await supabase.auth.getUser()
+            if (!user) return
+
+            const channel = supabase
+                .channel(`theme-${user.id}`)
+                .on(
+                    'postgres_changes',
+                    {
+                        event: 'UPDATE',
+                        schema: 'public',
+                        table: 'profiles',
+                        filter: `id=eq.${user.id}`,
+                    },
+                    (payload) => {
+                        const newTheme = payload.new?.selected_theme
+                        if (newTheme) applyTheme(newTheme)
+                    }
+                )
+                .subscribe()
+
+            return channel
+        }
+
+        let channelRef: ReturnType<typeof supabase.channel> | undefined
+        setupChannel().then(ch => { channelRef = ch })
 
         return () => {
-            supabase.removeChannel(channel)
+            if (channelRef) supabase.removeChannel(channelRef)
         }
     }, []) // eslint-disable-line react-hooks/exhaustive-deps
 

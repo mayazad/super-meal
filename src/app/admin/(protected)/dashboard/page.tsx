@@ -150,10 +150,15 @@ export default function AdminDashboardPage() {
             const allStats = [selectedStats, ...rest as MonthStats[]]
             setYearlyData([...allStats].reverse())
 
-            const { data: globalSettingsData } = await supabase.from('app_settings').select('selected_theme, broadcast_message').eq('id', 'global_config').single()
+            const { data: globalSettingsData } = await supabase.from('app_settings').select('broadcast_message').eq('id', 'global_config').single()
             if (globalSettingsData) {
-                setActiveThemeState(globalSettingsData.selected_theme as 'classic' | 'emerald' || 'classic')
                 if (globalSettingsData.broadcast_message) setBroadcastMsg(globalSettingsData.broadcast_message)
+            }
+
+            // Load this admin's personal theme from their profile
+            const { data: profileData } = await supabase.from('profiles').select('selected_theme').eq('id', adminId).single()
+            if (profileData?.selected_theme) {
+                setActiveThemeState(profileData.selected_theme as 'classic' | 'emerald')
             }
             fetchDebtors(selectedMonth, adminId)
         } catch {
@@ -188,9 +193,10 @@ export default function AdminDashboardPage() {
         if (!adminId) return
         setIsSavingTheme(true)
         setActiveThemeState(theme)
-        // Optimistic: apply locally right away
+        // Apply locally immediately (optimistic)
         document.documentElement.setAttribute('data-theme', theme)
-        await supabase.from('app_settings').update({ selected_theme: theme, updated_at: new Date().toISOString() }).eq('id', 'global_config')
+        // Save to this admin's own profile row (per-admin, not global)
+        await supabase.from('profiles').update({ selected_theme: theme }).eq('id', adminId)
         setIsSavingTheme(false)
     }
 
