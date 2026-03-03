@@ -8,7 +8,7 @@ import Link from 'next/link'
 
 type Profile = {
     id: string
-    email?: string  // fetched from auth metadata
+    email: string
     role: string
     mess_name: string
     mess_slug: string
@@ -288,9 +288,8 @@ export default function SenpaiDashboard() {
                             <div key={p.id} className="p-5 border border-amber-500/30 bg-amber-50/50 dark:bg-amber-500/5 rounded-xl flex flex-col gap-4">
                                 <div>
                                     <h3 className="font-semibold text-lg">{p.mess_name}</h3>
-                                    <p className="text-xs font-mono mt-1 text-muted-foreground bg-muted/50 rounded px-2 py-0.5 inline-block">
-                                        /view/{p.mess_slug}
-                                    </p>
+                                    <p className="text-sm text-muted-foreground">{p.email}</p>
+                                    <p className="text-xs font-mono mt-1 text-muted-foreground bg-muted/50 rounded px-2 py-0.5 inline-block">/view/{p.mess_slug}</p>
                                     <p className="text-xs text-muted-foreground/60 mt-1">
                                         Registered: {p.created_at ? new Date(p.created_at).toLocaleString() : 'Unknown'}
                                     </p>
