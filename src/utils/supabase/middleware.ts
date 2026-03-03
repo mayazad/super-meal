@@ -34,13 +34,14 @@ export async function updateSession(request: NextRequest) {
     const url = request.nextUrl.clone()
     const path = url.pathname
 
-    const isLoginPath = path.startsWith('/admin/login') || path === '/register'
+    const isLoginPath = path.startsWith('/admin/login')
+    const isRegisterPath = path.startsWith('/register') // fully public — no auth required
     const isAdminPath = path.startsWith('/admin') && !isLoginPath
     const isSenpaiPath = path.startsWith('/senpai')
     const isViewPath = path.startsWith('/view')
 
-    // Public routes that don't need auth checks
-    if (isViewPath) return supabaseResponse
+    // Public routes — no auth checks at all
+    if (isViewPath || isRegisterPath) return supabaseResponse
 
     if (!user) {
         if (isAdminPath || isSenpaiPath || path.startsWith('/register/pending')) {
@@ -56,12 +57,17 @@ export async function updateSession(request: NextRequest) {
 
     const email = user.email
 
-    // Redirect authenticated users away from login pages
+    // Redirect authenticated users away from login page ONLY if they are fully active
     if (isLoginPath) {
-        if (role === 'senpai' && email === 'mayaz@adnan.hossain') url.pathname = '/senpai'
-        else if (role === 'admin') url.pathname = '/admin/dashboard'
-        else url.pathname = '/register/pending'
-        return NextResponse.redirect(url)
+        if (role === 'senpai' && email === 'mayaz@adnan.hossain') {
+            url.pathname = '/senpai'
+            return NextResponse.redirect(url)
+        } else if (role === 'admin') {
+            url.pathname = '/admin/dashboard'
+            return NextResponse.redirect(url)
+        }
+        // pending_admin users: allow them to visit login so they can re-auth after approval
+        return supabaseResponse
     }
 
     // Role-based protection: Senpai only - Strictly locked to mayaz@adnan.hossain

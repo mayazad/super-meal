@@ -16,17 +16,24 @@ export default function PendingApproval() {
     useEffect(() => {
         const checkStatus = async () => {
             const { data: { user } } = await supabase.auth.getUser()
-            if (!user) return // They were signed out after registration — fine, just show the static page
+
+            if (!user) return // Already signed out — show static page, let them click login
 
             setUserEmail(user.email || '')
-            setIsChecking(true)
 
-            // Check role — if they are somehow still logged in and got approved, redirect
+            // Fetch current role
             const { data: profile } = await supabase.from('profiles').select('role').eq('id', user.id).single()
-            if (profile?.role === 'admin') router.push('/admin/dashboard')
-            else if (profile?.role === 'senpai') router.push('/senpai')
+            const role = profile?.role
 
-            setIsChecking(false)
+            if (role === 'admin') {
+                // Approved! Redirect directly
+                router.push('/admin/dashboard')
+            } else if (role === 'senpai') {
+                router.push('/senpai')
+            } else {
+                // Still pending — sign out so "Go to Login" gives a clean fresh session
+                await supabase.auth.signOut()
+            }
         }
 
         checkStatus()
