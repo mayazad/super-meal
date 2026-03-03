@@ -23,7 +23,9 @@ export default function RegisterForm() {
     // Auto-generate slug from mess name unless user has manually edited it
     useEffect(() => {
         if (!slugEdited) {
-            setMessSlug(messName.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)+/g, ''))
+            setTimeout(() => {
+                setMessSlug(messName.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)+/g, ''))
+            }, 0)
         }
     }, [messName, slugEdited])
 

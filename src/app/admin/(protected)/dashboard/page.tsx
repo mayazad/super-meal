@@ -6,7 +6,8 @@ import { useAdmin } from '@/hooks/use-admin'
 import { motion, AnimatePresence } from 'framer-motion'
 import { SkeletonPage } from '@/components/ui/skeleton'
 import { PageError } from '@/components/ui/page-error'
-import { ChevronLeft, ChevronRight, Lock, Unlock, ExternalLink, TrendingUp, Copy, Check, AlertTriangle, Palette } from 'lucide-react'
+import { ChevronLeft, ChevronRight, Lock, Unlock, ExternalLink, TrendingUp, Copy, Check, AlertTriangle, Palette, Archive, Loader2 } from 'lucide-react'
+import { useRouter } from 'next/navigation'
 
 type MonthStats = {
     month_year: string
@@ -56,10 +57,19 @@ export default function AdminDashboardPage() {
     const [isSavingTheme, setIsSavingTheme] = useState(false)
     const [broadcastMsg, setBroadcastMsg] = useState('')
     const [messSlug, setMessSlug] = useState('')
+    const [showCloseModal, setShowCloseModal] = useState(false)
+    const [isClosingMonth, setIsClosingMonth] = useState(false)
+    const [closeSuccess, setCloseSuccess] = useState(false)
+
+    // Show Close Month only in last 7 days of the current calendar month
+    const todayDate = now.getDate()
+    const lastDayOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate()
+    const isEndOfMonth = selectedMonth === currentMonthYear && todayDate >= lastDayOfMonth - 6
 
     const months12 = getLast12Months()
 
     const { adminId, adminEmail, isAuthLoading } = useAdmin()
+    const router = useRouter()
 
     const fetchStats = useCallback(async (monthYear: string, currentAdminId: string): Promise<MonthStats> => {
         const [
@@ -219,6 +229,74 @@ export default function AdminDashboardPage() {
         setSelectedMonth(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`)
     }
 
+    const handleCloseMonth = async () => {
+        if (!adminId) return
+        setIsClosingMonth(true)
+        try {
+            // 1. Gather all data needed for the archive snapshot
+            const [
+                { data: members },
+                { data: groceries },
+                { data: dailyMeals },
+                { data: mealDeposits },
+                { data: profileData },
+            ] = await Promise.all([
+                supabase.from('members').select('id, name').eq('is_active', true).eq('admin_id', adminId).order('name'),
+                supabase.from('groceries').select('cost').eq('month_year', selectedMonth).eq('admin_id', adminId),
+                supabase.from('daily_meals').select('member_id, regular_meals, guest_meals').eq('month_year', selectedMonth).eq('admin_id', adminId),
+                supabase.from('meal_deposits').select('member_id, amount').eq('month_year', selectedMonth).eq('admin_id', adminId),
+                supabase.from('profiles').select('mess_slug').eq('id', adminId).single(),
+            ])
+
+            // 2. Calculate final settlement
+            const groceryTotal = (groceries || []).reduce((s, r) => s + Number(r.cost), 0)
+            const mealsTotal = (dailyMeals || []).reduce((s, r) => s + r.regular_meals + r.guest_meals, 0)
+            const rate = mealsTotal > 0 ? groceryTotal / mealsTotal : 0
+            const depositsTotal = (mealDeposits || []).reduce((s, d) => s + Number(d.amount), 0)
+
+            const settlementData = (members || []).map(member => {
+                const memberMeals = (dailyMeals || []).filter(r => r.member_id === member.id).reduce((s, r) => s + r.regular_meals + r.guest_meals, 0)
+                const memberDeposits = (mealDeposits || []).filter(d => d.member_id === member.id).reduce((s, d) => s + Number(d.amount), 0)
+                const mealCost = memberMeals * rate
+                return { name: member.name, totalMeals: memberMeals, totalDeposits: memberDeposits, mealCost, netBalance: memberDeposits - mealCost }
+            })
+
+            const monthLong = new Date(selectedMonth + '-01T00:00:00').toLocaleString('default', { month: 'long', year: 'numeric' })
+
+            // 3. Insert archive row
+            const { error: insertError } = await supabase.from('monthly_archives').insert([{
+                admin_id: adminId,
+                mess_slug: profileData?.mess_slug ?? '',
+                month_year: selectedMonth,
+                month_label: monthLong,
+                total_grocery: groceryTotal,
+                total_meals: mealsTotal,
+                meal_rate: rate,
+                total_deposits: depositsTotal,
+                cash_on_hand: depositsTotal - groceryTotal,
+                settlement_data: settlementData,
+            }])
+
+            if (insertError) throw insertError
+
+            // 4. Delete meal-side data for this month
+            await Promise.all([
+                supabase.from('daily_meals').delete().eq('month_year', selectedMonth).eq('admin_id', adminId),
+                supabase.from('meal_deposits').delete().eq('month_year', selectedMonth).eq('admin_id', adminId),
+                supabase.from('groceries').delete().eq('month_year', selectedMonth).eq('admin_id', adminId),
+            ])
+
+            setShowCloseModal(false)
+            setCloseSuccess(true)
+            setTimeout(() => router.push('/admin/history'), 1800)
+        } catch (err) {
+            console.error('Close month failed:', err)
+            alert('Something went wrong archiving the month. Please try again.')
+        } finally {
+            setIsClosingMonth(false)
+        }
+    }
+
     const maxExpense = Math.max(...yearlyData.map(d => d.totalExpenses), 1)
 
     if (error) return <PageError message={error} onRetry={loadAll} />
@@ -270,6 +348,41 @@ export default function AdminDashboardPage() {
                 )}
             </AnimatePresence>
 
+            {/* ── Close Month Modal ────────────────────────────────────── */}
+            <AnimatePresence>
+                {showCloseModal && (
+                    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+                        className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-background/80 backdrop-blur-sm">
+                        <motion.div initial={{ scale: 0.95, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.95, opacity: 0 }}
+                            className="bg-card border shadow-lg rounded-xl p-6 w-full max-w-md overflow-hidden relative">
+                            <div className="flex items-center gap-3 text-red-500 mb-2">
+                                <AlertTriangle className="h-6 w-6" />
+                                <h3 className="text-xl font-bold">Close Month & Archive</h3>
+                            </div>
+                            <p className="text-sm text-muted-foreground mb-4">
+                                Are you sure you want to close <strong>{stats?.monthLabel}</strong>?
+                            </p>
+                            <div className="bg-red-50 dark:bg-red-900/20 text-red-800 dark:text-red-300 p-4 rounded-lg text-sm mb-6 space-y-2">
+                                <p><strong>1. Archive:</strong> A permanent snapshot of all meal rates and member balances will be saved to History.</p>
+                                <p><strong>2. Reset:</strong> All <u>meals</u>, <u>meal deposits</u>, and <u>groceries</u> for this month will be <strong>permanently deleted</strong> to reset the ledger.</p>
+                                <p className="font-semibold pt-1">This action cannot be undone.</p>
+                            </div>
+                            <div className="flex items-center justify-end gap-3">
+                                <button onClick={() => setShowCloseModal(false)} disabled={isClosingMonth || closeSuccess}
+                                    className="px-4 py-2 text-sm font-medium hover:bg-muted rounded-md transition-colors disabled:opacity-50">
+                                    Cancel
+                                </button>
+                                <button onClick={handleCloseMonth} disabled={isClosingMonth || closeSuccess}
+                                    className="px-4 py-2 text-sm font-bold bg-red-600 text-white hover:bg-red-700 rounded-md transition-colors disabled:opacity-50 flex items-center gap-2">
+                                    {isClosingMonth ? <><Loader2 className="h-4 w-4 animate-spin" /> Archiving...</> :
+                                        closeSuccess ? <><Check className="h-4 w-4" /> Success!</> :
+                                            'Yes, Close & Reset'}
+                                </button>
+                            </div>
+                        </motion.div>
+                    </motion.div>
+                )}
+            </AnimatePresence>
             {/* ── Header + Month Navigator ─────────────────────────────── */}
             {broadcastMsg && (
                 <motion.div
@@ -331,7 +444,7 @@ export default function AdminDashboardPage() {
                             <Unlock className="h-4 w-4" />
                             <span>{stats?.monthLabel} is open for editing.</span>
                         </div>
-                        <div className="flex items-center gap-2">
+                        <div className="flex flex-wrap items-center gap-2">
                             {/* Copy Due List */}
                             {debtors.length > 0 && (
                                 <button onClick={handleCopyDueList}
@@ -345,6 +458,14 @@ export default function AdminDashboardPage() {
                                 <Lock className="h-3 w-3" />
                                 {isLocking ? 'Locking…' : 'Lock Month'}
                             </button>
+                            {/* Close Month Button (End of month only) */}
+                            {isEndOfMonth && (
+                                <button onClick={() => setShowCloseModal(true)} disabled={isClosingMonth}
+                                    className="inline-flex h-8 items-center gap-1.5 rounded-md border border-red-200 bg-red-50 text-red-600 px-3 text-xs font-semibold hover:bg-red-100 transition-colors disabled:opacity-50 dark:border-red-900/50 dark:bg-red-900/20 dark:text-red-400 dark:hover:bg-red-900/40">
+                                    <Archive className="h-3 w-3" />
+                                    Close Month
+                                </button>
+                            )}
                         </div>
                     </div>
                 )

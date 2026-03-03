@@ -10,8 +10,8 @@ import Link from 'next/link'
 export default function PendingApproval() {
     const router = useRouter()
     const supabase = createClient()
-    const [userEmail, setUserEmail] = useState<string>('')
-    const [isChecking, setIsChecking] = useState(false)
+    const [isChecking] = useState(false) // Removed userEmail as it's unused
+    // Removed setUserEmail as it's unused
 
     useEffect(() => {
         const checkStatus = async () => {
@@ -19,7 +19,7 @@ export default function PendingApproval() {
 
             if (!user) return // Already signed out — show static page, let them click login
 
-            setUserEmail(user.email || '')
+            // setUserEmail(user.email || '') // Removed as userEmail is unused
 
             // Fetch current role
             const { data: profile } = await supabase.from('profiles').select('role').eq('id', user.id).single()
@@ -66,7 +66,7 @@ export default function PendingApproval() {
                         </div>
                         <div className="flex items-start gap-3">
                             <Loader2 className={`h-5 w-5 text-amber-400 shrink-0 mt-0.5 ${isChecking ? 'animate-spin' : ''}`} />
-                            <p className="text-sm text-[#1A2F1A]">Your mess is currently <strong className="text-amber-600">'Pending Approval'</strong> by Senpai. You will be able to access your dashboard once approved.</p>
+                            <p className="text-sm text-[#1A2F1A]">Your mess is currently <strong className="text-amber-600">&apos;Pending Approval&apos;</strong> by Senpai. You will be able to access your dashboard once approved.</p>
                         </div>
                     </div>
 

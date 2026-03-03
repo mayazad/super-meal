@@ -127,10 +127,7 @@ export default function SettlementPage() {
             {/* Page header */}
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                 <div>
-                    <h1 className="text-2xl sm:text-3xl font-bold tracking-tight flex items-center gap-2">
-                        <Calculator className="h-7 w-7 text-primary shrink-0" />
-                        Month-End Settlement
-                    </h1>
+                    <h1 className="text-3xl font-bold tracking-tight">Month-End Settlement</h1>
                     <p className="text-muted-foreground text-sm mt-1">Per-member meal balance for the selected month.</p>
                 </div>
                 <div className="flex items-center gap-2">

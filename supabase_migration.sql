@@ -70,3 +70,26 @@ BEGIN
     UPDATE public.locked_months SET admin_id = migration_admin_id WHERE admin_id IS NULL;
 END $$;
 */
+
+-- ==============================================================================
+-- MONTHLY ARCHIVES — Run this block in Supabase SQL Editor
+-- ==============================================================================
+CREATE TABLE IF NOT EXISTS public.monthly_archives (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  admin_id UUID REFERENCES public.profiles(id) ON DELETE CASCADE,
+  mess_slug TEXT,
+  month_year TEXT NOT NULL,
+  month_label TEXT NOT NULL,
+  total_grocery NUMERIC DEFAULT 0,
+  total_meals INTEGER DEFAULT 0,
+  meal_rate NUMERIC DEFAULT 0,
+  total_deposits NUMERIC DEFAULT 0,
+  cash_on_hand NUMERIC DEFAULT 0,
+  settlement_data JSONB DEFAULT '[]',
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
+);
+
+ALTER TABLE public.monthly_archives ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "Admins manage own archives" ON public.monthly_archives;
+CREATE POLICY "Admins manage own archives" ON public.monthly_archives
+  FOR ALL USING (auth.uid() = admin_id);
