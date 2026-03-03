@@ -105,42 +105,38 @@ export default function MembersPage() {
                 </button>
             </form>
 
-            <div className="rounded-xl border bg-card text-card-foreground shadow-sm overflow-hidden">
-                {error ? (
-                    <PageError message={error} onRetry={fetchMembers} />
-                ) : isLoading ? (
-                    <div className="divide-y">
-                        {Array.from({ length: 4 }).map((_, i) => <SkeletonRow key={i} cols={3} />)}
-                    </div>
-                ) : members.length === 0 ? (
-                    <div className="p-8 text-center text-muted-foreground">
-                        No members found. Add your first roommate above.
-                    </div>
-                ) : (
-                    <div className="divide-y relative">
-                        <AnimatePresence>
-                            {members.map((member) => (
-                                <motion.div
-                                    key={member.id}
-                                    initial={{ opacity: 0, height: 0 }}
-                                    animate={{ opacity: member.is_active ? 1 : 0.5, height: 'auto' }}
-                                    exit={{ opacity: 0, height: 0 }}
-                                    transition={{ duration: 0.2 }}
-                                    className={`flex items-center justify-between p-4 ${!member.is_active && 'bg-muted/50'}`}
-                                >
-                                    <div>
-                                        <p className="font-medium flex items-center gap-2">
-                                            {member.name}
-                                            {!member.is_active && (
-                                                <span className="text-xs bg-muted px-2 py-0.5 rounded-full border">Inactive</span>
-                                            )}
-                                        </p>
-                                        <p className="text-xs text-muted-foreground">
-                                            Added {new Date(member.created_at).toLocaleDateString()}
-                                        </p>
-                                    </div>
-
-                                    {member.is_active && (
+            {error ? (
+                <PageError message={error} onRetry={fetchMembers} />
+            ) : isLoading ? (
+                <div className="rounded-xl border bg-card text-card-foreground shadow-sm overflow-hidden divide-y">
+                    {Array.from({ length: 4 }).map((_, i) => <SkeletonRow key={i} cols={3} />)}
+                </div>
+            ) : members.length === 0 ? (
+                <div className="rounded-xl border bg-card text-card-foreground shadow-sm overflow-hidden p-8 text-center text-muted-foreground">
+                    No members found. Add your first roommate above.
+                </div>
+            ) : (
+                <div className="space-y-6">
+                    {/* Active Members */}
+                    <div className="rounded-xl border bg-card text-card-foreground shadow-sm overflow-hidden">
+                        <div className="bg-muted/30 border-b px-4 py-3 font-semibold text-sm">Active Roommates</div>
+                        <div className="divide-y relative">
+                            <AnimatePresence>
+                                {members.filter(m => m.is_active).map((member) => (
+                                    <motion.div
+                                        key={member.id}
+                                        initial={{ opacity: 0, height: 0 }}
+                                        animate={{ opacity: 1, height: 'auto' }}
+                                        exit={{ opacity: 0, height: 0 }}
+                                        transition={{ duration: 0.2 }}
+                                        className="flex items-center justify-between p-4"
+                                    >
+                                        <div>
+                                            <p className="font-medium flex items-center gap-2">{member.name}</p>
+                                            <p className="text-xs text-muted-foreground">
+                                                Added {new Date(member.created_at).toLocaleDateString()}
+                                            </p>
+                                        </div>
                                         <button
                                             onClick={() => handleDeleteMember(member.id)}
                                             className="p-2 text-muted-foreground hover:text-red-500 hover:bg-red-100 dark:hover:bg-red-900/20 rounded-md transition-colors"
@@ -148,13 +144,38 @@ export default function MembersPage() {
                                         >
                                             <Trash2 className="h-4 w-4" />
                                         </button>
-                                    )}
-                                </motion.div>
-                            ))}
-                        </AnimatePresence>
+                                    </motion.div>
+                                ))}
+                                {members.filter(m => m.is_active).length === 0 && (
+                                    <div className="p-6 text-center text-sm text-muted-foreground">No active roommates.</div>
+                                )}
+                            </AnimatePresence>
+                        </div>
                     </div>
-                )}
-            </div>
+
+                    {/* Former Members */}
+                    {members.filter(m => !m.is_active).length > 0 && (
+                        <div className="rounded-xl border border-dashed bg-card text-card-foreground shadow-sm overflow-hidden opacity-75">
+                            <div className="bg-muted/30 border-b px-4 py-3 font-semibold text-sm text-muted-foreground flex justify-between items-center">
+                                Former Roommates
+                                <span className="text-xs font-normal bg-muted px-2 py-0.5 rounded-full">Archive Data Retained</span>
+                            </div>
+                            <div className="divide-y">
+                                {members.filter(m => !m.is_active).map((member) => (
+                                    <div key={member.id} className="flex items-center justify-between p-4 bg-muted/20">
+                                        <div>
+                                            <p className="font-medium text-muted-foreground">{member.name}</p>
+                                            <p className="text-xs text-muted-foreground/60">
+                                                Joined {new Date(member.created_at).toLocaleDateString()}
+                                            </p>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    )}
+                </div>
+            )}
         </div>
     )
 }

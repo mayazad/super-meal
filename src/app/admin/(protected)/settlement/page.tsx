@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { createClient } from '@/utils/supabase/client'
 import { useAdmin } from '@/hooks/use-admin'
-import { Calculator, Copy, Check, TrendingUp, TrendingDown, DollarSign, Utensils, Printer } from 'lucide-react'
+import { Calculator, Copy, Check, TrendingUp, TrendingDown, DollarSign, Utensils, Printer, Share2 } from 'lucide-react'
 import { SkeletonPage } from '@/components/ui/skeleton'
 import { PageError } from '@/components/ui/page-error'
 
@@ -99,10 +99,10 @@ export default function SettlementPage() {
 
     const cashOnHand = totalDepositsGlobal - totalGroceries
 
-    const handleCopy = () => {
+    const generateSummaryText = () => {
         const label = getMonthLabel(monthFilter)
         const lines = [
-            `📊 Meal Settlement — ${label}`,
+            `📊 *SuperMeal Settlement — ${label}*`,
             `Meal Rate: ${mealRate.toFixed(2)} Tk/meal`,
             `Total Groceries: ${totalGroceries.toFixed(2)} Tk`,
             `Cash on Hand: ${cashOnHand.toFixed(2)} Tk`,
@@ -110,11 +110,22 @@ export default function SettlementPage() {
             ...settlements.map(m => {
                 const tag = m.netBalance >= 0 ? `✅ Refund: ${m.netBalance.toFixed(2)} Tk` : `⚠️ Due: ${Math.abs(m.netBalance).toFixed(2)} Tk`
                 return `${m.name} (${m.totalMeals} meals) — ${tag}`
-            })
+            }),
+            ``,
+            `_Generated via SuperMeal_`
         ]
-        navigator.clipboard.writeText(lines.join('\n'))
+        return lines.join('\n')
+    }
+
+    const handleCopy = () => {
+        navigator.clipboard.writeText(generateSummaryText())
         setCopied(true)
         setTimeout(() => setCopied(false), 2500)
+    }
+
+    const handleWhatsAppShare = () => {
+        const text = encodeURIComponent(generateSummaryText())
+        window.open(`https://wa.me/?text=${text}`, '_blank')
     }
 
     if (error) return <PageError message={error} onRetry={fetchData} />
@@ -140,9 +151,20 @@ export default function SettlementPage() {
                     <button
                         onClick={handleCopy}
                         disabled={!hasData}
-                        className="flex items-center gap-2 h-10 px-4 rounded-md border text-sm font-medium hover:bg-muted/50 transition-colors disabled:opacity-40"
+                        className="flex items-center gap-2 h-10 px-3 sm:px-4 rounded-md border text-sm font-medium hover:bg-muted/50 transition-colors disabled:opacity-40"
+                        title="Copy text summary"
                     >
-                        {copied ? <><Check className="h-4 w-4 text-green-500" /> Copied!</> : <><Copy className="h-4 w-4" /> Copy</>}
+                        {copied ? <Check className="h-4 w-4 text-green-500" /> : <Copy className="h-4 w-4" />}
+                        <span className="hidden sm:inline">{copied ? 'Copied' : 'Copy'}</span>
+                    </button>
+                    <button
+                        onClick={handleWhatsAppShare}
+                        disabled={!hasData}
+                        className="flex items-center gap-2 h-10 px-3 sm:px-4 rounded-md border text-sm font-medium hover:bg-[#25D366]/10 hover:text-[#25D366] hover:border-[#25D366]/50 transition-colors disabled:opacity-40"
+                        title="Share to WhatsApp"
+                    >
+                        <Share2 className="h-4 w-4" />
+                        <span className="hidden sm:inline">WhatsApp</span>
                     </button>
                     <button
                         onClick={() => window.print()}

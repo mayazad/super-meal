@@ -48,7 +48,7 @@ export default function MealDepositsPage() {
         setError(null)
         try {
             const [membersResponse, depositsResponse] = await Promise.all([
-                supabase.from('members').select('id, name, is_active').eq('admin_id', adminId).order('name'),
+                supabase.from('members').select('id, name, is_active').eq('is_active', true).eq('admin_id', adminId).order('name'),
                 supabase.from('meal_deposits').select(`id, date, amount, month_year, member_id, members (name)`)
                     .eq('month_year', monthFilter).eq('admin_id', adminId).order('date', { ascending: false })
             ])

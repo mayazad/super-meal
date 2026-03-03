@@ -40,6 +40,8 @@ export default function SenpaiDashboard() {
     const [error, setError] = useState<string | null>(null)
     const [memberCounts, setMemberCounts] = useState<Record<string, number>>({})
     const [lastActive, setLastActive] = useState<Record<string, string>>({})
+    const [lastSettlement, setLastSettlement] = useState<Record<string, string>>({})
+    const [activityStatus, setActivityStatus] = useState<Record<string, 'Active' | 'Inactive' | 'Unused'>>({})
 
     const supabase = createClient()
 
@@ -54,6 +56,7 @@ export default function SenpaiDashboard() {
                 { data: meals },
                 { data: mealDeps },
                 { data: utilDeps },
+                { data: archivesData },
             ] = await Promise.all([
                 supabase.from('profiles').select('*').order('created_at', { ascending: false }),
                 supabase.from('app_settings').select('broadcast_message').eq('id', 'global_config').single(),
@@ -61,6 +64,7 @@ export default function SenpaiDashboard() {
                 supabase.from('daily_meals').select('date, regular_meals, guest_meals, admin_id'),
                 supabase.from('meal_deposits').select('amount'),
                 supabase.from('utility_deposits').select('amount'),
+                supabase.from('monthly_archives').select('admin_id, created_at').order('created_at', { ascending: false }),
             ])
 
             const fetchedProfiles = (profilesData || []) as Profile[]
@@ -81,12 +85,20 @@ export default function SenpaiDashboard() {
                 activeRoommates: safeMembers.filter(m => m.is_active).length,
             })
 
-            // Member counts & last active per admin
+            // Member counts & last active/settlement per admin
             const mCounts: Record<string, number> = {}
             const lActive: Record<string, string> = {}
+            const lSettlement: Record<string, string> = {}
+            const actStatus: Record<string, 'Active' | 'Inactive' | 'Unused'> = {}
+
             safeMembers.filter(m => m.is_active).forEach(m => {
                 if (m.admin_id) mCounts[m.admin_id] = (mCounts[m.admin_id] || 0) + 1
             })
+
+            const fortyFiveDaysAgo = new Date()
+            fortyFiveDaysAgo.setDate(fortyFiveDaysAgo.getDate() - 45)
+
+                // Calculate last activity purely for the line graph
                 ;[...safeMeals]
                     .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
                     .forEach(m => {
@@ -94,8 +106,25 @@ export default function SenpaiDashboard() {
                             lActive[m.admin_id] = m.date
                         }
                     })
+
+            // Calculate exact Last Settlement Date & 45-day Activity Window
+            const safeArchives = archivesData || []
+            admins.forEach(admin => {
+                const adminArchives = safeArchives.filter((a: { admin_id: string; created_at: string }) => a.admin_id === admin.id)
+                if (adminArchives.length > 0) {
+                    const latest = adminArchives[0].created_at
+                    lSettlement[admin.id] = new Date(latest).toLocaleDateString()
+                    actStatus[admin.id] = new Date(latest) >= fortyFiveDaysAgo ? 'Active' : 'Inactive'
+                } else {
+                    lSettlement[admin.id] = 'Never'
+                    actStatus[admin.id] = 'Unused'
+                }
+            })
+
             setMemberCounts(mCounts)
             setLastActive(lActive)
+            setLastSettlement(lSettlement)
+            setActivityStatus(actStatus)
 
             // 14-day chart
             const last14Days: ChartData[] = []
@@ -311,7 +340,6 @@ export default function SenpaiDashboard() {
                             </thead>
                             <tbody className="divide-y divide-border">
                                 {admins.map(p => {
-                                    const isLive = lastActive[p.id] ? (new Date().getTime() - new Date(lastActive[p.id]).getTime()) / 3600000 <= 48 : false
                                     return (
                                         <tr key={p.id} className="hover:bg-muted/30 transition-colors">
                                             <td className="px-5 py-4">
@@ -327,18 +355,23 @@ export default function SenpaiDashboard() {
                                                     {memberCounts[p.id] || 0} <span className="text-xs text-muted-foreground ml-1">users</span>
                                                 </span>
                                             </td>
-                                            <td className="px-5 py-4">
-                                                {isLive ? (
+                                            <td className="px-5 py-4 flex flex-col items-start gap-1">
+                                                {activityStatus[p.id] === 'Active' ? (
                                                     <span className="inline-flex items-center gap-1.5 bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-300 px-2.5 py-1 rounded-full text-xs font-bold uppercase tracking-wider">
                                                         <span className="relative flex h-2 w-2">
                                                             <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-500 opacity-75"></span>
                                                             <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
                                                         </span>
-                                                        Live
+                                                        Active
                                                     </span>
+                                                ) : activityStatus[p.id] === 'Inactive' ? (
+                                                    <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400 border border-red-200">Inactive</span>
                                                 ) : (
-                                                    <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium text-muted-foreground border">Dormant</span>
+                                                    <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium text-muted-foreground border">Unused</span>
                                                 )}
+                                                <span className="text-[10px] text-muted-foreground font-medium uppercase tracking-wider mt-1">
+                                                    Last Settled: {lastSettlement[p.id]}
+                                                </span>
                                             </td>
                                             <td className="px-5 py-4">
                                                 <div className="flex items-center justify-end gap-2">
@@ -367,7 +400,6 @@ export default function SenpaiDashboard() {
                 {/* ── Mobile Card List ── */}
                 <div className="sm:hidden space-y-3">
                     {admins.map(p => {
-                        const isLive = lastActive[p.id] ? (new Date().getTime() - new Date(lastActive[p.id]).getTime()) / 3600000 <= 48 : false
                         const mCount = memberCounts[p.id] || 0
                         return (
                             <div key={p.id} className="border rounded-xl bg-card p-4 shadow-sm space-y-3">
@@ -380,22 +412,29 @@ export default function SenpaiDashboard() {
                                         </div>
                                         <p className="text-xs text-muted-foreground truncate mt-0.5">{p.email}</p>
                                     </div>
-                                    {isLive ? (
-                                        <span className="shrink-0 inline-flex items-center gap-1.5 bg-emerald-100 text-emerald-700 px-2 py-1 rounded-full text-[10px] font-bold uppercase">
+                                    {activityStatus[p.id] === 'Active' ? (
+                                        <span className="shrink-0 inline-flex items-center gap-1.5 bg-emerald-100 text-emerald-700 px-2 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider">
                                             <span className="relative flex h-1.5 w-1.5">
                                                 <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-500 opacity-75"></span>
                                                 <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-emerald-500"></span>
                                             </span>
-                                            Live
+                                            Active
                                         </span>
+                                    ) : activityStatus[p.id] === 'Inactive' ? (
+                                        <span className="shrink-0 inline-flex items-center px-2 py-1 rounded-full text-[10px] font-medium bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400 border border-red-200">Inactive</span>
                                     ) : (
-                                        <span className="shrink-0 inline-flex items-center px-2 py-1 rounded-full text-[10px] font-medium text-muted-foreground border">Dormant</span>
+                                        <span className="shrink-0 inline-flex items-center px-2 py-1 rounded-full text-[10px] font-medium text-muted-foreground border">Unused</span>
                                     )}
                                 </div>
                                 {/* Meta row */}
-                                <div className="flex items-center gap-3 text-xs text-muted-foreground">
-                                    <span className="bg-muted px-2 py-0.5 rounded font-mono">{mCount} members</span>
-                                    <span>Created {new Date(p.created_at).toLocaleDateString()}</span>
+                                <div className="flex flex-col gap-1 text-xs text-muted-foreground">
+                                    <div className="flex items-center gap-3">
+                                        <span className="bg-muted px-2 py-0.5 rounded font-mono">{mCount} members</span>
+                                        <span>Created {new Date(p.created_at).toLocaleDateString()}</span>
+                                    </div>
+                                    <span className="text-[10px] font-medium uppercase tracking-wider mt-1">
+                                        Last Settled: {lastSettlement[p.id]}
+                                    </span>
                                 </div>
                                 {/* Actions */}
                                 <div className="flex items-center gap-2 pt-2 border-t border-border">

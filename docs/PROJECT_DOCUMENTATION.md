@@ -24,6 +24,7 @@ User authentication is handled by Supabase Auth (Email/Password). Authorization 
 1. **`senpai` (Super Admin):**
    - Hardcoded via environment variable (`NEXT_PUBLIC_SENPAI_EMAIL`).
    - Has access to a special `/senpai` dashboard to approve, reject, or revoke pending workspaces.
+   - Views live intelligence (Active vs Inactive workspaces based on a 45-day rolling settlement window) and active member counts.
    - Bypasses standard workspace restrictions.
 2. **`admin` (Workspace Owner):**
    - The manager of a specific mess. 
@@ -37,7 +38,7 @@ User authentication is handled by Supabase Auth (Email/Password). Authorization 
 
 ## 5. Core Data Models (Supabase Schema)
 - **`profiles`:** Matches Supabase Auth UUID. Stores `role`, `mess_name`, `mess_slug`, and `selected_theme`.
-- **`members`:** Individuals living in the mess. Tracks `is_active` status.
+- **`members`:** Individuals living in the mess. Uses `is_active` for soft-deletion. When deactivated, members disappear from daily entry forms but their data is preserved for historical archive/settlement accuracy.
 - **`daily_meals`:** Logs `regular_meals` and `guest_meals` per member, per date.
 - **`groceries`:** Expenses incurred for food/bazaar. Logged by date and `month_year`.
 - **`meal_deposits`:** Cash given by members specifically to fund the grocery/meal budget.
@@ -60,6 +61,7 @@ SuperMeal strictly separates the **Meal Fund** (variable) from the **Utility Fun
    - If **Positive (> 0)** = The mess owes the member money (**Refund Due**).
    - If **Negative (< 0)** = The member owes the mess money (**Amount Owed**).
 6. **Cash On Hand:** $\text{Total Meal Deposits} - \text{Total Groceries}$. This exact amount is physically held by the Admin and is used to pay out the "Refund Due" members.
+7. **Communication:** Admins can instantly broadcast the month-end calculated balances via a pre-formatted `whatsapp://send?text=` deep link directly to their mess group chat.
 
 ## 7. Folder Structure
 - `/src/app/admin/(protected)`: The core application. All routes here are scoped to authenticated `admin` users via Middleware.
