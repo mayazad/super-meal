@@ -185,7 +185,7 @@ export default function AdminDashboardPage() {
         setActiveThemeState(theme)
         // Optimistic: apply locally right away
         document.documentElement.setAttribute('data-theme', theme)
-        await supabase.from('app_settings').update({ selected_theme: theme, updated_at: new Date().toISOString() }).eq('id', 'global_config').eq('admin_id', adminId)
+        await supabase.from('app_settings').update({ selected_theme: theme, updated_at: new Date().toISOString() }).eq('id', 'global_config')
         setIsSavingTheme(false)
     }
 
