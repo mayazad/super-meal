@@ -209,11 +209,11 @@ export default function SettlementPage() {
                                                     {m.netBalance >= 0 ? '+' : ''}{m.netBalance.toFixed(2)} Tk
                                                 </span>
                                                 <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider ${m.netBalance >= 0
-                                                        ? 'bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-300'
-                                                        : 'bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400'
+                                                    ? 'bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-300'
+                                                    : 'bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400'
                                                     }`}>
                                                     {m.netBalance >= 0 ? <TrendingUp className="h-3 w-3" /> : <TrendingDown className="h-3 w-3" />}
-                                                    {m.netBalance >= 0 ? 'Refund Due' : 'Amount Due'}
+                                                    {m.netBalance >= 0 ? 'Refund Due' : 'Amount Owed'}
                                                 </span>
                                             </div>
                                         </td>
@@ -243,11 +243,11 @@ export default function SettlementPage() {
                                 <div className="flex items-center justify-between">
                                     <p className="font-bold text-base">{m.name}</p>
                                     <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-wider ${m.netBalance >= 0
-                                            ? 'bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700'
-                                            : 'bg-red-100 dark:bg-red-900/30 text-red-600'
+                                        ? 'bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700'
+                                        : 'bg-red-100 dark:bg-red-900/30 text-red-600'
                                         }`}>
                                         {m.netBalance >= 0 ? <TrendingUp className="h-3 w-3" /> : <TrendingDown className="h-3 w-3" />}
-                                        {m.netBalance >= 0 ? 'Refund Due' : 'Amount Due'}
+                                        {m.netBalance >= 0 ? 'Refund Due' : 'Amount Owed'}
                                     </span>
                                 </div>
 
