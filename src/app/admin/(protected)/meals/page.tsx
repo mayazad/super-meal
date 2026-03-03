@@ -57,7 +57,7 @@ export default function MealsPage() {
         })
         setMeals(mealMap)
         setIsLoading(false)
-    }, [dateFilter]) // eslint-disable-line react-hooks/exhaustive-deps
+    }, [dateFilter, adminId]) // eslint-disable-line react-hooks/exhaustive-deps
 
     // ── Fetch monthly history for the ledger table ───────────────────────────────
     const fetchLedger = useCallback(async () => {
@@ -71,7 +71,7 @@ export default function MealsPage() {
             .order('date', { ascending: false })
         setLedger(data || [])
         setIsLoadingLedger(false)
-    }, [monthYear]) // eslint-disable-line react-hooks/exhaustive-deps
+    }, [monthYear, adminId]) // eslint-disable-line react-hooks/exhaustive-deps
 
     useEffect(() => { fetchData() }, [fetchData])
     useEffect(() => { fetchLedger() }, [fetchLedger])
