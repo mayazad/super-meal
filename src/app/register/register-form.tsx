@@ -43,15 +43,51 @@ export default function RegisterForm() {
         setIsLoading(true)
         setError(null)
 
-        // 1. Create user in Supabase Auth
-        const { data: authData, error: authError } = await supabase.auth.signUp({ email, password })
+        // 1. Try to create user in Supabase Auth
+        let { data: authData, error: authError } = await supabase.auth.signUp({ email, password })
+
+        // Handle: email already registered in Auth (orphaned user with no profile)
+        if (authError?.message?.toLowerCase().includes('already registered') ||
+            authError?.message?.toLowerCase().includes('user already registered') ||
+            authError?.code === 'user_already_exists') {
+
+            // Try signing in with the provided credentials
+            const { data: signInData, error: signInError } = await supabase.auth.signInWithPassword({ email, password })
+
+            if (signInError) {
+                // Wrong password — genuinely different account
+                setError('This email is already registered. Please go to /admin/login to sign in.')
+                setIsLoading(false)
+                return
+            }
+
+            // Signed in — check if they already have a profile
+            const { data: existingProfile } = await supabase.from('profiles').select('id, role').eq('id', signInData.user.id).single()
+
+            if (existingProfile) {
+                // Profile exists — just redirect them based on role
+                await supabase.auth.signOut()
+                if (existingProfile.role === 'admin') {
+                    setError('Your account is already active. Please log in at /admin/login.')
+                } else {
+                    router.push('/register/pending')
+                }
+                setIsLoading(false)
+                return
+            }
+
+            // No profile yet — orphaned auth user. Use their ID to complete registration.
+            authData = signInData
+            authError = null
+        }
+
         if (authError) {
             setError(authError.message)
             setIsLoading(false)
             return
         }
 
-        const user = authData.user
+        const user = authData?.user
         if (user) {
             // 2. Create profile with pending_admin role
             const { error: profileError } = await supabase.from('profiles').insert([{
