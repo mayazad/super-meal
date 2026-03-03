@@ -56,7 +56,6 @@ export default function RegisterForm() {
             // 2. Create profile with pending_admin role
             const { error: profileError } = await supabase.from('profiles').insert([{
                 id: user.id,
-                email: user.email,
                 mess_name: messName.trim(),
                 mess_slug: messSlug,
                 role: 'pending_admin'
