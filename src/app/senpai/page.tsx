@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import { createClient } from '@/utils/supabase/client'
-import { Check, X, ShieldAlert, BadgeCheck, Trash2, ShieldCheck, Activity, Users, Wallet, Send, ChevronRight, RefreshCw, CheckCircle2 } from 'lucide-react'
+import { Check, X, ShieldAlert, BadgeCheck, Trash2, ShieldCheck, Activity, Users, Wallet, Send, ChevronRight, RefreshCw, CheckCircle2, KeyRound, Copy, ExternalLink } from 'lucide-react'
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer } from 'recharts'
 import Link from 'next/link'
 import { SkeletonPage } from '@/components/ui/skeleton'
@@ -41,6 +41,16 @@ export default function SenpaiDashboard() {
     const [memberCounts, setMemberCounts] = useState<Record<string, number>>({})
     const [lastSettlement, setLastSettlement] = useState<Record<string, string>>({})
     const [activityStatus, setActivityStatus] = useState<Record<string, 'Active' | 'Inactive' | 'Unused'>>({})
+    const [resetClaims, setResetClaims] = useState<{
+        id: string
+        admin_email: string
+        created_at: string
+        is_used: boolean
+        token: string | null
+        expires_at: string | null
+    }[]>([])
+    const [generatedLinks, setGeneratedLinks] = useState<Record<string, string>>({})
+    const [generatingId, setGeneratingId] = useState<string | null>(null)
 
     const supabase = createClient()
 
@@ -56,6 +66,7 @@ export default function SenpaiDashboard() {
                 { data: mealDeps },
                 { data: utilDeps },
                 { data: archivesData },
+                { data: claimsData },
             ] = await Promise.all([
                 supabase.from('profiles').select('*').order('created_at', { ascending: false }),
                 supabase.from('app_settings').select('broadcast_message').eq('id', 'global_config').single(),
@@ -64,11 +75,14 @@ export default function SenpaiDashboard() {
                 supabase.from('meal_deposits').select('amount'),
                 supabase.from('utility_deposits').select('amount'),
                 supabase.from('monthly_archives').select('admin_id, created_at').order('created_at', { ascending: false }),
+                supabase.from('password_reset_claims').select('*').eq('is_used', false).order('created_at', { ascending: false }),
             ])
 
             const fetchedProfiles = (profilesData || []) as Profile[]
             setProfiles(fetchedProfiles)
             if (settingsData?.broadcast_message) setBroadcastMsg(settingsData.broadcast_message)
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            setResetClaims((claimsData as any[]) || [])
 
             const admins = fetchedProfiles.filter(p => p.role === 'admin' || p.role === 'senpai')
             const safeMembers = members || []
@@ -183,6 +197,25 @@ export default function SenpaiDashboard() {
         setIsBroadcasting(false)
         setBroadcastSuccess(true)
         setTimeout(() => setBroadcastSuccess(false), 3000)
+    }
+
+    const handleGenerateResetLink = async (claimId: string) => {
+        setGeneratingId(claimId)
+        try {
+            const res = await fetch('/api/generate-reset-token', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ claimId }),
+            })
+            const data = await res.json()
+            if (data.resetLink) {
+                setGeneratedLinks(prev => ({ ...prev, [claimId]: data.resetLink }))
+            }
+        } catch {
+            // silent
+        } finally {
+            setGeneratingId(null)
+        }
     }
 
     if (error) return <PageError message={error} onRetry={fetchDashboardData} />
@@ -456,6 +489,57 @@ export default function SenpaiDashboard() {
                         <p className="text-center text-sm text-muted-foreground py-8">No active workspaces yet.</p>
                     )}
                 </div>
+            </div>
+
+            {/* ── Password Reset Requests ───────────────────────────── */}
+            <div className="relative z-10 rounded-xl border bg-card shadow-sm overflow-hidden">
+                <div className="flex items-center gap-3 px-5 py-4 border-b bg-muted/30">
+                    <KeyRound className="h-5 w-5 text-amber-500" />
+                    <h2 className="font-bold text-base">Password Reset Requests</h2>
+                    {resetClaims.length > 0 && (
+                        <span className="ml-auto inline-flex items-center justify-center h-5 min-w-5 px-1.5 rounded-full bg-amber-500 text-white text-[10px] font-black">
+                            {resetClaims.length}
+                        </span>
+                    )}
+                </div>
+                {resetClaims.length === 0 ? (
+                    <p className="text-sm text-muted-foreground text-center py-8">No pending reset requests.</p>
+                ) : (
+                    <div className="divide-y">
+                        {resetClaims.map(claim => (
+                            <div key={claim.id} className="px-5 py-4 flex flex-col sm:flex-row sm:items-center gap-3">
+                                <div className="flex-1 min-w-0">
+                                    <p className="font-semibold text-sm">{claim.admin_email}</p>
+                                    <p className="text-xs text-muted-foreground mt-0.5">
+                                        Requested {new Date(claim.created_at).toLocaleString()}
+                                    </p>
+                                </div>
+                                {generatedLinks[claim.id] ? (
+                                    <div className="flex items-center gap-2 bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-200 dark:border-emerald-800 rounded-lg px-3 py-2 max-w-full">
+                                        <ExternalLink className="h-3.5 w-3.5 text-emerald-600 shrink-0" />
+                                        <code className="text-xs text-emerald-700 dark:text-emerald-300 truncate max-w-[280px]">{generatedLinks[claim.id]}</code>
+                                        <button
+                                            onClick={() => navigator.clipboard.writeText(generatedLinks[claim.id])}
+                                            className="ml-1 shrink-0 p-1 hover:bg-emerald-100 rounded transition-colors"
+                                            title="Copy link"
+                                        >
+                                            <Copy className="h-3.5 w-3.5 text-emerald-600" />
+                                        </button>
+                                    </div>
+                                ) : (
+                                    <button
+                                        onClick={() => handleGenerateResetLink(claim.id)}
+                                        disabled={generatingId === claim.id}
+                                        className="shrink-0 flex items-center gap-1.5 px-4 py-2 bg-amber-500 hover:bg-amber-600 text-white text-xs font-bold rounded-lg transition-colors disabled:opacity-60"
+                                    >
+                                        <KeyRound className="h-3.5 w-3.5" />
+                                        {generatingId === claim.id ? 'Generating...' : 'Approve & Generate Link'}
+                                    </button>
+                                )}
+                            </div>
+                        ))}
+                    </div>
+                )}
             </div>
         </div>
     )

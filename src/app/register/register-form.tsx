@@ -111,6 +111,13 @@ export default function RegisterForm() {
                 return
             }
 
+            // Notify senpai — fire and forget, never block the user
+            fetch('/api/notify-registration', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ messName: messName.trim(), adminEmail: email, messSlug }),
+            }).catch(() => { }) // ignore errors silently
+
             // Sign out immediately — don't auto-login
             await supabase.auth.signOut()
             router.push('/register/pending')

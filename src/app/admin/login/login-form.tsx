@@ -106,6 +106,12 @@ export default function LoginForm() {
                 </button>
             </form>
 
+            <div className="text-center">
+                <a href="/admin/forgot-password" className="text-xs text-muted-foreground/70 hover:text-muted-foreground transition-colors underline">
+                    Forgot password? Request a reset
+                </a>
+            </div>
+
             <div className="text-center text-sm text-muted-foreground mt-4">
                 Don&apos;t have an account? <a href="/register" className="underline hover:text-foreground">Create Workspace</a>
             </div>
