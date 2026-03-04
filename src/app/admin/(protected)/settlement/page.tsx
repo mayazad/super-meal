@@ -13,7 +13,11 @@ type MemberSettlement = {
     totalMeals: number
     totalDeposits: number
     mealCost: number
-    netBalance: number // positive = refund due, negative = amount due
+    netBalance: number // positive = refund due, negative = amount due (MEAL side only)
+    utilityShare: number
+    utilityDeposits: number
+    utilityNetBalance: number
+    totalNetBalance: number // combined meal + utility
 }
 
 function getCurrentMonthFilter() {
@@ -50,16 +54,23 @@ export default function SettlementPage() {
                 { data: groceries },
                 { data: dailyMeals },
                 { data: mealDeposits },
+                { data: utilities },
+                { data: utilityDeposits },
             ] = await Promise.all([
                 supabase.from('members').select('id, name').eq('is_active', true).eq('admin_id', adminId).order('name'),
                 supabase.from('groceries').select('cost').eq('month_year', monthFilter).eq('admin_id', adminId),
                 supabase.from('daily_meals').select('member_id, regular_meals, guest_meals').eq('month_year', monthFilter).eq('admin_id', adminId),
                 supabase.from('meal_deposits').select('member_id, amount').eq('month_year', monthFilter).eq('admin_id', adminId),
+                supabase.from('utilities').select('cost').eq('month_year', monthFilter).eq('admin_id', adminId),
+                supabase.from('utility_deposits').select('member_id, amount').eq('month_year', monthFilter).eq('admin_id', adminId),
             ])
 
             const groceryTotal = (groceries || []).reduce((s, r) => s + Number(r.cost), 0)
+            const utilitiesTotal = (utilities || []).reduce((s, r) => s + Number(r.cost), 0)
             const mealsTotal = (dailyMeals || []).reduce((s, r) => s + r.regular_meals + r.guest_meals, 0)
             const rate = mealsTotal > 0 ? groceryTotal / mealsTotal : 0
+            const memberCount = (members || []).length
+            const utilitySharePerPerson = memberCount > 0 ? utilitiesTotal / memberCount : 0
 
             setTotalGroceries(groceryTotal)
             setTotalMeals(mealsTotal)
@@ -70,19 +81,29 @@ export default function SettlementPage() {
                     .filter(r => r.member_id === member.id)
                     .reduce((s, r) => s + r.regular_meals + r.guest_meals, 0)
 
-                const memberDeposits = (mealDeposits || [])
+                const memberMealDeposits = (mealDeposits || [])
+                    .filter(d => d.member_id === member.id)
+                    .reduce((s, d) => s + Number(d.amount), 0)
+
+                const memberUtilDeposits = (utilityDeposits || [])
                     .filter(d => d.member_id === member.id)
                     .reduce((s, d) => s + Number(d.amount), 0)
 
                 const mealCost = memberMeals * rate
+                const mealNetBalance = memberMealDeposits - mealCost
+                const utilityNetBalance = memberUtilDeposits - utilitySharePerPerson
 
                 return {
                     id: member.id,
                     name: member.name,
                     totalMeals: memberMeals,
-                    totalDeposits: memberDeposits,
+                    totalDeposits: memberMealDeposits,
                     mealCost,
-                    netBalance: memberDeposits - mealCost,
+                    netBalance: mealNetBalance,
+                    utilityShare: utilitySharePerPerson,
+                    utilityDeposits: memberUtilDeposits,
+                    utilityNetBalance,
+                    totalNetBalance: mealNetBalance + utilityNetBalance,
                 }
             })
 
@@ -218,9 +239,11 @@ export default function SettlementPage() {
                                 <tr>
                                     <th className="px-5 py-3 text-left font-semibold">Member</th>
                                     <th className="px-5 py-3 text-right font-semibold">Meals</th>
-                                    <th className="px-5 py-3 text-right font-semibold">Meal Cost</th>
-                                    <th className="px-5 py-3 text-right font-semibold">Deposits</th>
-                                    <th className="px-5 py-3 text-right font-semibold">Net Balance</th>
+                                    <th className="px-5 py-3 text-right font-semibold">Meal Deposits</th>
+                                    <th className="px-5 py-3 text-right font-semibold">Meal Balance</th>
+                                    <th className="px-5 py-3 text-right font-semibold">Utility Share</th>
+                                    <th className="px-5 py-3 text-right font-semibold">Util. Deposited</th>
+                                    <th className="px-5 py-3 text-right font-semibold">Total Balance</th>
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-border">
@@ -228,19 +251,21 @@ export default function SettlementPage() {
                                     <tr key={m.id} className="hover:bg-muted/30 transition-colors">
                                         <td className="px-5 py-4 font-semibold">{m.name}</td>
                                         <td className="px-5 py-4 text-right text-muted-foreground">{m.totalMeals}</td>
-                                        <td className="px-5 py-4 text-right text-muted-foreground">{m.mealCost.toFixed(2)}</td>
                                         <td className="px-5 py-4 text-right text-muted-foreground">{m.totalDeposits.toFixed(2)}</td>
+                                        <td className="px-5 py-4 text-right text-muted-foreground">{m.netBalance >= 0 ? '+' : ''}{m.netBalance.toFixed(2)}</td>
+                                        <td className="px-5 py-4 text-right text-muted-foreground">{m.utilityShare.toFixed(2)}</td>
+                                        <td className="px-5 py-4 text-right text-muted-foreground">{m.utilityDeposits.toFixed(2)}</td>
                                         <td className="px-5 py-4 text-right">
                                             <div className="flex items-center justify-end gap-2">
-                                                <span className={`font-bold text-base ${m.netBalance >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-500'}`}>
-                                                    {m.netBalance >= 0 ? '+' : ''}{m.netBalance.toFixed(2)} Tk
+                                                <span className={`font-bold text-base ${m.totalNetBalance >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-500'}`}>
+                                                    {m.totalNetBalance >= 0 ? '+' : ''}{m.totalNetBalance.toFixed(2)} Tk
                                                 </span>
-                                                <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider ${m.netBalance >= 0
+                                                <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider ${m.totalNetBalance >= 0
                                                     ? 'bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-300'
                                                     : 'bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400'
                                                     }`}>
-                                                    {m.netBalance >= 0 ? <TrendingUp className="h-3 w-3" /> : <TrendingDown className="h-3 w-3" />}
-                                                    {m.netBalance >= 0 ? 'Refund Due' : 'Amount Owed'}
+                                                    {m.totalNetBalance >= 0 ? <TrendingUp className="h-3 w-3" /> : <TrendingDown className="h-3 w-3" />}
+                                                    {m.totalNetBalance >= 0 ? 'Refund Due' : 'Amount Owed'}
                                                 </span>
                                             </div>
                                         </td>
@@ -278,26 +303,29 @@ export default function SettlementPage() {
                                     </span>
                                 </div>
 
-                                <div className="grid grid-cols-3 gap-2 text-center">
+                                <div className="grid grid-cols-2 gap-2 text-center">
                                     <div className="bg-muted/50 rounded-lg p-2">
                                         <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Meals</p>
                                         <p className="font-bold text-sm mt-0.5">{m.totalMeals}</p>
                                     </div>
                                     <div className="bg-muted/50 rounded-lg p-2">
-                                        <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Meal Cost</p>
-                                        <p className="font-bold text-sm mt-0.5">{m.mealCost.toFixed(0)} Tk</p>
+                                        <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Meal Balance</p>
+                                        <p className={`font-bold text-sm mt-0.5 ${m.netBalance >= 0 ? 'text-emerald-600' : 'text-red-500'}`}>{m.netBalance >= 0 ? '+' : ''}{m.netBalance.toFixed(0)} Tk</p>
                                     </div>
                                     <div className="bg-muted/50 rounded-lg p-2">
-                                        <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Deposits</p>
-                                        <p className="font-bold text-sm mt-0.5">{m.totalDeposits.toFixed(0)} Tk</p>
+                                        <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Util. Share</p>
+                                        <p className="font-bold text-sm mt-0.5">{m.utilityShare.toFixed(0)} Tk</p>
+                                    </div>
+                                    <div className="bg-muted/50 rounded-lg p-2">
+                                        <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Util. Deposit</p>
+                                        <p className={`font-bold text-sm mt-0.5 ${m.utilityNetBalance >= 0 ? 'text-emerald-600' : 'text-red-500'}`}>{m.utilityDeposits.toFixed(0)} Tk</p>
                                     </div>
                                 </div>
 
-                                <div className={`flex items-center justify-between rounded-lg px-3 py-2 ${m.netBalance >= 0 ? 'bg-emerald-50 dark:bg-emerald-900/20' : 'bg-red-50 dark:bg-red-900/20'
-                                    }`}>
-                                    <span className="text-xs text-muted-foreground font-medium">Net Balance</span>
-                                    <span className={`font-black text-lg ${m.netBalance >= 0 ? 'text-emerald-600' : 'text-red-500'}`}>
-                                        {m.netBalance >= 0 ? '+' : ''}{m.netBalance.toFixed(2)} Tk
+                                <div className={`flex items-center justify-between rounded-lg px-3 py-2 ${m.totalNetBalance >= 0 ? 'bg-emerald-50 dark:bg-emerald-900/20' : 'bg-red-50 dark:bg-red-900/20'}`}>
+                                    <span className="text-xs text-muted-foreground font-medium">Total Net Balance</span>
+                                    <span className={`font-black text-lg ${m.totalNetBalance >= 0 ? 'text-emerald-600' : 'text-red-500'}`}>
+                                        {m.totalNetBalance >= 0 ? '+' : ''}{m.totalNetBalance.toFixed(2)} Tk
                                     </span>
                                 </div>
                             </div>

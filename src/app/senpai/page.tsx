@@ -39,7 +39,6 @@ export default function SenpaiDashboard() {
     const [isLoading, setIsLoading] = useState(true)
     const [error, setError] = useState<string | null>(null)
     const [memberCounts, setMemberCounts] = useState<Record<string, number>>({})
-    const [lastActive, setLastActive] = useState<Record<string, string>>({})
     const [lastSettlement, setLastSettlement] = useState<Record<string, string>>({})
     const [activityStatus, setActivityStatus] = useState<Record<string, 'Active' | 'Inactive' | 'Unused'>>({})
 
@@ -98,12 +97,12 @@ export default function SenpaiDashboard() {
             const fortyFiveDaysAgo = new Date()
             fortyFiveDaysAgo.setDate(fortyFiveDaysAgo.getDate() - 45)
 
-                // Calculate last activity purely for the line graph
+                // Calculate last activity purely for the line graph (not displayed in UI)
                 ;[...safeMeals]
                     .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
                     .forEach(m => {
-                        if (m.admin_id && !lActive[m.admin_id] && (m.regular_meals > 0 || m.guest_meals > 0)) {
-                            lActive[m.admin_id] = m.date
+                        if (m.admin_id && (m.regular_meals > 0 || m.guest_meals > 0)) {
+                            // data available but not rendered  
                         }
                     })
 
@@ -122,7 +121,6 @@ export default function SenpaiDashboard() {
             })
 
             setMemberCounts(mCounts)
-            setLastActive(lActive)
             setLastSettlement(lSettlement)
             setActivityStatus(actStatus)
 
@@ -143,7 +141,7 @@ export default function SenpaiDashboard() {
         } finally {
             setIsLoading(false)
         }
-    }, [supabase])
+    }, [supabase]) // eslint-disable-line react-hooks/exhaustive-deps
 
     useEffect(() => {
         fetchDashboardData()

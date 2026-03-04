@@ -3,7 +3,8 @@
 import { useState, useEffect, useCallback } from 'react'
 import { createClient } from '@/utils/supabase/client'
 import { useAdmin } from '@/hooks/use-admin'
-import { Archive, ChevronDown, ChevronUp, TrendingUp, TrendingDown, Clock } from 'lucide-react'
+import { Archive, ChevronDown, ChevronUp, TrendingUp, TrendingDown, Clock, ExternalLink } from 'lucide-react'
+import Link from 'next/link'
 import { SkeletonPage } from '@/components/ui/skeleton'
 import { PageError } from '@/components/ui/page-error'
 
@@ -26,6 +27,7 @@ type MonthlyArchive = {
     cash_on_hand: number
     settlement_data: SettlementMember[]
     created_at: string
+    admin_id: string
 }
 
 export default function HistoryPage() {
@@ -34,6 +36,7 @@ export default function HistoryPage() {
 
     const [archives, setArchives] = useState<MonthlyArchive[]>([])
     const [expandedId, setExpandedId] = useState<string | null>(null)
+    const [messSlug, setMessSlug] = useState('')
     const [isLoading, setIsLoading] = useState(true)
     const [error, setError] = useState<string | null>(null)
 
@@ -42,13 +45,13 @@ export default function HistoryPage() {
         setIsLoading(true)
         setError(null)
         try {
-            const { data, error: fetchError } = await supabase
-                .from('monthly_archives')
-                .select('*')
-                .eq('admin_id', adminId)
-                .order('created_at', { ascending: false })
+            const [{ data, error: fetchError }, { data: profileData }] = await Promise.all([
+                supabase.from('monthly_archives').select('*').eq('admin_id', adminId).order('created_at', { ascending: false }),
+                supabase.from('profiles').select('mess_slug').eq('id', adminId).single()
+            ])
             if (fetchError) throw fetchError
             setArchives(data || [])
+            if (profileData?.mess_slug) setMessSlug(profileData.mess_slug)
         } catch {
             setError('Failed to load archive history.')
         } finally {
@@ -108,6 +111,19 @@ export default function HistoryPage() {
                                             <span>{Number(archive.total_grocery).toFixed(0)} Tk groceries</span>
                                             <span>{Number(archive.total_deposits).toFixed(0)} Tk deposits</span>
                                         </div>
+                                        {messSlug && (
+                                            <Link
+                                                href={`/view/${messSlug}/${archive.month_year}`}
+                                                target="_blank"
+                                                rel="noreferrer"
+                                                onClick={e => e.stopPropagation()}
+                                                className="hidden sm:flex items-center gap-1.5 px-2.5 py-1.5 rounded-md border text-xs font-medium hover:bg-muted transition-colors text-muted-foreground"
+                                                title="View Public Report"
+                                            >
+                                                <ExternalLink className="h-3.5 w-3.5" />
+                                                Report
+                                            </Link>
+                                        )}
                                         {isOpen ? <ChevronUp className="h-4 w-4 text-muted-foreground" /> : <ChevronDown className="h-4 w-4 text-muted-foreground" />}
                                     </div>
                                 </button>

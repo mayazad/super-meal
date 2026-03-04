@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react'
 import { createClient } from '@/utils/supabase/client'
 import { useAdmin } from '@/hooks/use-admin'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Trash2, Plus, Loader2 } from 'lucide-react'
+import { Trash2, Plus, Loader2, RotateCcw } from 'lucide-react'
 import { SkeletonRow } from '@/components/ui/skeleton'
 import { PageError } from '@/components/ui/page-error'
 
@@ -74,6 +74,18 @@ export default function MembersPage() {
 
         if (!error) {
             setMembers(members.map(m => m.id === id ? { ...m, is_active: false } : m))
+        }
+    }
+
+    const handleReactivateMember = async (id: string) => {
+        if (!confirm('Reactivate this former roommate? They will appear in all active lists again.')) return
+        const { error } = await supabase
+            .from('members')
+            .update({ is_active: true })
+            .eq('id', id)
+            .eq('admin_id', adminId)
+        if (!error) {
+            setMembers(members.map(m => m.id === id ? { ...m, is_active: true } : m))
         }
     }
 
@@ -169,6 +181,14 @@ export default function MembersPage() {
                                                 Joined {new Date(member.created_at).toLocaleDateString()}
                                             </p>
                                         </div>
+                                        <button
+                                            onClick={() => handleReactivateMember(member.id)}
+                                            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-emerald-600 hover:bg-emerald-100 dark:hover:bg-emerald-900/20 rounded-md transition-colors border border-emerald-200 dark:border-emerald-800"
+                                            title="Reactivate Member"
+                                        >
+                                            <RotateCcw className="h-3.5 w-3.5" />
+                                            Reactivate
+                                        </button>
                                     </div>
                                 ))}
                             </div>

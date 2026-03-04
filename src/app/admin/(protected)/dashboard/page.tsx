@@ -68,7 +68,7 @@ export default function AdminDashboardPage() {
 
     const months12 = getLast12Months()
 
-    const { adminId, adminEmail, isAuthLoading } = useAdmin()
+    const { adminId, adminEmail } = useAdmin()
     const router = useRouter()
 
     const fetchStats = useCallback(async (monthYear: string, currentAdminId: string): Promise<MonthStats> => {

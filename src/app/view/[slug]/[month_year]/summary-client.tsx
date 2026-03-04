@@ -5,7 +5,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import {
     Download, Link as LinkIcon, Check, ReceiptText, ClipboardList,
     AlertTriangle, AlertCircle, ChevronDown, CheckCircle2, Clock, CalendarDays,
-    ChevronLeft, ChevronRight, Lock, FileSpreadsheet
+    ChevronLeft, Lock, FileSpreadsheet
 } from 'lucide-react'
 import { toPng } from 'html-to-image'
 import NextLink from 'next/link'
@@ -90,7 +90,7 @@ function fmtDate(dateStr: string) {
     return new Date(dateStr + 'T00:00:00').toLocaleDateString(undefined, { month: 'short', day: 'numeric' })
 }
 
-export default function SummaryClient({ slug, messName, monthName, monthYear, breakdown, textSummary, deadlines, utilityBills, isLocked, prevMonth, nextMonth, hasNextMonth, rawDeposits, stats }: SummaryProps) {
+export default function SummaryClient({ slug, messName, monthName, monthYear, breakdown, textSummary, deadlines, isLocked, prevMonth, nextMonth, hasNextMonth, rawDeposits, stats }: SummaryProps) {
     const [isExporting, setIsExporting] = useState(false)
     const [isExportingXlsx, setIsExportingXlsx] = useState(false)
     const [copiedLink, setCopiedLink] = useState(false)
@@ -191,8 +191,16 @@ export default function SummaryClient({ slug, messName, monthName, monthYear, br
         } catch (e) { console.error(e) }
     }
 
-    const toggleUtil = (id: string) => setExpandedUtil(prev => { const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n })
-    const toggleLog = (id: string) => setExpandedLog(prev => { const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n })
+    const toggleUtil = (id: string) => setExpandedUtil(prev => {
+        const n = new Set(prev)
+        if (n.has(id)) n.delete(id); else n.add(id)
+        return n
+    })
+    const toggleLog = (id: string) => setExpandedLog(prev => {
+        const n = new Set(prev)
+        if (n.has(id)) n.delete(id); else n.add(id)
+        return n
+    })
 
     // Wall of Shame — members with negative total balance, sorted worst first
     const wallOfShame = breakdown

@@ -137,7 +137,14 @@ export default function ActivityLogsPage() {
         <div className="space-y-8 max-w-4xl">
             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
                 <div>
-                    <h1 className="text-3xl font-bold tracking-tight">Audit Logs</h1>
+                    <div className="flex items-center gap-3">
+                        <h1 className="text-3xl font-bold tracking-tight">Audit Logs</h1>
+                        {!isLoading && events.length > 0 && (
+                            <span className="inline-flex items-center justify-center px-2.5 py-1 rounded-full text-xs font-bold bg-primary/10 text-primary border border-primary/20">
+                                {events.length} events
+                            </span>
+                        )}
+                    </div>
                     <p className="text-muted-foreground mt-1">
                         Timeline of all financial activity and transactions.
                     </p>

@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react'
 import { createClient } from '@/utils/supabase/client'
 import { useAdmin } from '@/hooks/use-admin'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Loader2, Calendar as CalendarIcon, Landmark, User as UserIcon } from 'lucide-react'
+import { Loader2, Landmark, User as UserIcon } from 'lucide-react'
 import { SkeletonRow } from '@/components/ui/skeleton'
 import { PageError } from '@/components/ui/page-error'
 
