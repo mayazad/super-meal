@@ -183,7 +183,7 @@ superMeal/
 
 ## 📄 License
 
-Private project. All rights reserved.
+Private project by MayazAD. All rights reserved.
 
 ---
 
