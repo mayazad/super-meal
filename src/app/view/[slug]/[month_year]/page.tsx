@@ -1,6 +1,7 @@
 import { createClient } from '@/utils/supabase/server'
 import { notFound } from 'next/navigation'
 import SummaryClient from './summary-client'
+import GrocerySubmitForm from './grocery-submit-form'
 import Link from 'next/link'
 import type { Metadata } from 'next'
 
@@ -189,21 +190,34 @@ export default async function ViewPublicSummaryPage(props: {
     ].sort((a, b) => (a.date ?? '').localeCompare(b.date ?? ''))
 
     return (
-        <SummaryClient
-            slug={slug}
-            messName={messNameTitle}
-            monthName={monthName}
-            monthYear={monthYear}
-            breakdown={breakdown}
-            textSummary={textSummaryText}
-            deadlines={deadlines}
-            utilityBills={utilityBills}
-            isLocked={isLocked}
-            prevMonth={prevMonth}
-            nextMonth={nextMonth}
-            hasNextMonth={nextMonth <= nowMonth}
-            rawDeposits={rawDeposits}
-            stats={{ totalMeals: totalMealsConsumed, mealRate, totalGroceries, totalUtilities }}
-        />
+        <>
+            <SummaryClient
+                slug={slug}
+                messName={messNameTitle}
+                monthName={monthName}
+                monthYear={monthYear}
+                breakdown={breakdown}
+                textSummary={textSummaryText}
+                deadlines={deadlines}
+                utilityBills={utilityBills}
+                isLocked={isLocked}
+                prevMonth={prevMonth}
+                nextMonth={nextMonth}
+                hasNextMonth={nextMonth <= nowMonth}
+                rawDeposits={rawDeposits}
+                stats={{ totalMeals: totalMealsConsumed, mealRate, totalGroceries, totalUtilities }}
+            />
+            {/* Member Grocery Submission — only for current/open months */}
+            {(activeMembers?.length ?? 0) > 0 && !isLocked && (
+                <div className="max-w-2xl mx-auto px-4 pb-10">
+                    <GrocerySubmitForm
+                        adminId={adminId}
+                        members={(activeMembers || []).map(m => ({ id: m.id, name: m.name }))}
+                        currentMonth={monthYear}
+                        isLocked={isLocked}
+                    />
+                </div>
+            )}
+        </>
     )
 }

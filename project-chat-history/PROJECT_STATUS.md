@@ -72,6 +72,7 @@
 | `locked_months` | ✅ Active |
 | `monthly_archives` | ✅ Active |
 | `password_reset_claims` | ⚠️ **Needs manual SQL** — see below |
+| `grocery_submissions` | ⚠️ **Needs manual SQL** — see below |
 
 ---
 
@@ -92,13 +93,14 @@
 - ✅ Email notification on new registration (Resend)
 - ✅ Senpai-mediated password reset flow
 - ✅ Reactivate inactive members
+- ✅ Member grocery submission (public view → admin approval)
 
 ---
 
 ## ⚠️ Pending: Manual Action Required
 
-### 1. Run Password Reset Claims SQL
-This table does **not** exist yet in Supabase. Run this in the Supabase SQL editor:
+### 1. Run SQL for New Tables
+These tables do **not** exist yet in Supabase. Run this in the Supabase SQL editor:
 
 ```sql
 create table if not exists public.password_reset_claims (
@@ -113,6 +115,22 @@ create table if not exists public.password_reset_claims (
 alter table public.password_reset_claims enable row level security;
 create policy "Service role full access" on public.password_reset_claims
   using (true) with check (true);
+
+-- Grocery Submissions Table
+create table if not exists public.grocery_submissions (
+  id uuid primary key default gen_random_uuid(),
+  admin_id uuid references public.profiles(id) on delete cascade,
+  member_name text not null,
+  date date not null,
+  item_name text not null,
+  cost numeric not null,
+  note text,
+  status text default 'pending', -- 'pending', 'approved', 'rejected'
+  submitted_at timestamptz default now()
+);
+alter table public.grocery_submissions enable row level security;
+create policy "Public insert" on public.grocery_submissions for insert with check (true);
+create policy "Admin owns it" on public.grocery_submissions for all using (auth.uid() = admin_id);
 ```
 
 ### 2. Fill in Real Environment Variables

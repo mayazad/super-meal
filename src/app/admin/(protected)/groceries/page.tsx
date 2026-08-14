@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { createClient } from '@/utils/supabase/client'
 import { useAdmin } from '@/hooks/use-admin'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Loader2, Calendar as CalendarIcon, ShoppingBag, User as UserIcon, Trash2 } from 'lucide-react'
+import { Loader2, Calendar as CalendarIcon, ShoppingBag, User as UserIcon, Trash2, ClipboardCheck, Check, X } from 'lucide-react'
 import { SkeletonRow } from '@/components/ui/skeleton'
 import { PageError } from '@/components/ui/page-error'
 
@@ -19,9 +19,21 @@ type Grocery = {
     purchased_by: string | null
 }
 
+type Submission = {
+    id: string
+    member_name: string
+    date: string
+    item_name: string
+    cost: number
+    note: string | null
+    status: string
+    submitted_at: string
+}
+
 export default function GroceriesPage() {
     const [groceries, setGroceries] = useState<Grocery[]>([])
     const [members, setMembers] = useState<Member[]>([])
+    const [submissions, setSubmissions] = useState<Submission[]>([])
     const [isLoading, setIsLoading] = useState(true)
     const [error, setError] = useState<string | null>(null)
     const [isSubmitting, setIsSubmitting] = useState(false)
@@ -46,14 +58,17 @@ export default function GroceriesPage() {
         setIsLoading(true)
         setError(null)
         try {
-            const [{ data: groceryData }, { data: memberData }, { data: lockedData }] = await Promise.all([
+            const [{ data: groceryData }, { data: memberData }, { data: lockedData }, { data: pendingData }] = await Promise.all([
                 supabase.from('groceries').select('*').eq('month_year', monthFilter).eq('admin_id', adminId).order('date', { ascending: false }),
                 supabase.from('members').select('id, name').eq('is_active', true).eq('admin_id', adminId).order('name'),
-                supabase.from('locked_months').select('id').eq('month_year', monthFilter).eq('admin_id', adminId)
+                supabase.from('locked_months').select('id').eq('month_year', monthFilter).eq('admin_id', adminId),
+                supabase.from('grocery_submissions').select('*').eq('admin_id', adminId).eq('status', 'pending').order('submitted_at', { ascending: false }),
             ])
             setGroceries(groceryData || [])
             setMembers(memberData || [])
             setIsLocked((lockedData?.length ?? 0) > 0)
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            setSubmissions((pendingData as any[]) || [])
             if (memberData && memberData.length > 0 && !purchasedBy) setPurchasedBy(memberData[0].id)
         } catch {
             setError('Failed to load grocery data.')
@@ -126,6 +141,42 @@ export default function GroceriesPage() {
         setDeleteConfirm(prev => ({ ...prev, [id]: false }))
     }
 
+    const handleApproveSubmission = async (sub: Submission) => {
+        const month_year = sub.date.substring(0, 7)
+        // Find member id by name (best effort — name match)
+        const member = members.find(m => m.name === sub.member_name)
+
+        // 1. Insert into groceries
+        const { data: groceryRow, error: gErr } = await supabase
+            .from('groceries')
+            .insert([{ date: sub.date, item_name: sub.item_name, cost: sub.cost, month_year, purchased_by: member?.id ?? null, admin_id: adminId }])
+            .select().single()
+
+        if (gErr || !groceryRow) return
+
+        // 2. Auto-credit the buyer if member found
+        if (member) {
+            await supabase.from('meal_deposits').insert([{
+                member_id: member.id,
+                amount: sub.cost,
+                month_year,
+                date: sub.date,
+                note: `Member submission: ${sub.item_name}`,
+                admin_id: adminId,
+            }])
+        }
+
+        // 3. Mark submission approved
+        await supabase.from('grocery_submissions').update({ status: 'approved' }).eq('id', sub.id)
+        setSubmissions(prev => prev.filter(s => s.id !== sub.id))
+        if (month_year === monthFilter) fetchData()
+    }
+
+    const handleRejectSubmission = async (id: string) => {
+        await supabase.from('grocery_submissions').update({ status: 'rejected' }).eq('id', id)
+        setSubmissions(prev => prev.filter(s => s.id !== id))
+    }
+
     const getMemberName = (id: string | null) => members.find(m => m.id === id)?.name ?? null
     const totalCost = groceries.reduce((sum, item) => sum + Number(item.cost), 0)
 
@@ -133,7 +184,14 @@ export default function GroceriesPage() {
         <div className="space-y-8 max-w-4xl">
             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
                 <div>
-                    <h1 className="text-3xl font-bold tracking-tight">Groceries</h1>
+                    <div className="flex items-center gap-3">
+                        <h1 className="text-3xl font-bold tracking-tight">Groceries</h1>
+                        {submissions.length > 0 && (
+                            <span className="inline-flex items-center justify-center px-2.5 py-1 rounded-full text-xs font-bold bg-amber-500 text-white animate-pulse">
+                                {submissions.length} pending
+                            </span>
+                        )}
+                    </div>
                     <p className="text-muted-foreground mt-1">Log shared bazaar and grocery expenses.</p>
                 </div>
                 <input
@@ -286,6 +344,54 @@ export default function GroceriesPage() {
                         Grocery Ledger · <span className="font-mono font-semibold">MayazAD</span>
                     </p>
                 </div>
+            </div>
+
+            {/* ── Member Submissions ───────────────────────────────────── */}
+            <div className="rounded-xl border bg-card shadow-sm overflow-hidden">
+                <div className="flex items-center gap-3 px-5 py-4 border-b bg-muted/30">
+                    <ClipboardCheck className="h-5 w-5 text-amber-500" />
+                    <h2 className="font-bold text-base">Member Grocery Submissions</h2>
+                    {submissions.length > 0 && (
+                        <span className="ml-auto inline-flex items-center justify-center h-5 min-w-5 px-1.5 rounded-full bg-amber-500 text-white text-[10px] font-black">
+                            {submissions.length}
+                        </span>
+                    )}
+                </div>
+                {submissions.length === 0 ? (
+                    <p className="text-sm text-muted-foreground text-center py-8">No pending member submissions.</p>
+                ) : (
+                    <div className="divide-y">
+                        {submissions.map(sub => (
+                            <div key={sub.id} className="px-5 py-4 flex flex-col sm:flex-row sm:items-center gap-3">
+                                <div className="flex-1 min-w-0">
+                                    <div className="flex items-center gap-2 flex-wrap">
+                                        <p className="font-semibold text-sm">{sub.item_name}</p>
+                                        <span className="text-xs font-bold text-emerald-600">{Number(sub.cost).toFixed(2)} Tk</span>
+                                    </div>
+                                    <p className="text-xs text-muted-foreground mt-0.5">
+                                        By <span className="font-medium">{sub.member_name}</span> · {new Date(sub.date + 'T00:00:00').toLocaleDateString()}
+                                        {sub.note && <span className="ml-2 italic opacity-70">&quot;{sub.note}&quot;</span>}
+                                    </p>
+                                    <p className="text-[10px] text-muted-foreground/50 mt-0.5">Submitted {new Date(sub.submitted_at).toLocaleString()}</p>
+                                </div>
+                                <div className="flex items-center gap-2 shrink-0">
+                                    <button
+                                        onClick={() => handleApproveSubmission(sub)}
+                                        className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-500 hover:bg-emerald-600 text-white text-xs font-bold rounded-lg transition-colors"
+                                    >
+                                        <Check className="h-3.5 w-3.5" /> Approve
+                                    </button>
+                                    <button
+                                        onClick={() => handleRejectSubmission(sub.id)}
+                                        className="flex items-center gap-1.5 px-3 py-1.5 border hover:bg-red-50 hover:text-red-600 hover:border-red-300 dark:hover:bg-red-900/20 text-xs font-medium rounded-lg transition-colors"
+                                    >
+                                        <X className="h-3.5 w-3.5" /> Reject
+                                    </button>
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                )}
             </div>
         </div>
     )
