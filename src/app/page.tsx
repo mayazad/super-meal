@@ -17,7 +17,7 @@ const faqs = [
   },
   {
     q: 'How is the meal rate calculated?',
-    a: 'Automatically: Total Grocery Cost ÷ Total Meals eaten that month. Every roommate pays exactly what they consumed.',
+    a: 'Automatically: Total Meal Deposits ÷ Total Meals eaten that month. Every roommate pays exactly proportional to what they consumed.',
   },
   {
     q: 'Can I run multiple messes?',
@@ -209,7 +209,7 @@ export default function LandingPage() {
             </div>
             <h3 className="text-lg font-bold mb-2 text-[#064E3B]">Automated Math</h3>
             <p className="text-[#064E3B]/70 text-sm leading-relaxed">
-              Real-time meal rate (Total Grocery ÷ Total Meals). No more spreadsheet headaches each month.
+              Real-time meal rate (Total Meal Deposits ÷ Total Meals). No more spreadsheet headaches each month.
             </p>
           </div>
 

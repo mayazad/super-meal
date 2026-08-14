@@ -68,7 +68,8 @@ export default function SettlementPage() {
             const groceryTotal = (groceries || []).reduce((s, r) => s + Number(r.cost), 0)
             const utilitiesTotal = (utilities || []).reduce((s, r) => s + Number(r.cost), 0)
             const mealsTotal = (dailyMeals || []).reduce((s, r) => s + r.regular_meals + r.guest_meals, 0)
-            const rate = mealsTotal > 0 ? groceryTotal / mealsTotal : 0
+            const mealDepositsTotal = (mealDeposits || []).reduce((s, d) => s + Number(d.amount), 0)
+            const rate = mealsTotal > 0 ? mealDepositsTotal / mealsTotal : 0
             const memberCount = (members || []).length
             const utilitySharePerPerson = memberCount > 0 ? utilitiesTotal / memberCount : 0
 
@@ -343,7 +344,7 @@ export default function SettlementPage() {
 
                     {/* Meal rate note */}
                     <p className="text-xs text-muted-foreground/60 text-center">
-                        Meal Rate = {totalGroceries.toFixed(2)} Tk ÷ {totalMeals} meals = <strong>{mealRate.toFixed(4)} Tk/meal</strong>
+                        Meal Rate = Total Meal Deposits ({totalDepositsGlobal.toFixed(2)} Tk) ÷ {totalMeals} meals = <strong>{mealRate.toFixed(4)} Tk/meal</strong>
                     </p>
                 </>
             )}

@@ -93,7 +93,8 @@ export default async function ViewPublicSummaryPage(props: {
     const totalGroceries = groceries?.reduce((s, i) => s + Number(i.cost), 0) || 0
     const totalUtilities = utilities?.reduce((s, i) => s + Number(i.cost), 0) || 0
     const totalMealsConsumed = dailyMeals?.reduce((s, i) => s + i.regular_meals + i.guest_meals, 0) || 0
-    const mealRate = totalMealsConsumed > 0 ? totalGroceries / totalMealsConsumed : 0
+    const totalMealDepositsForRate = mealDeposits?.reduce((s, i) => s + Number(i.amount), 0) || 0
+    const mealRate = totalMealsConsumed > 0 ? totalMealDepositsForRate / totalMealsConsumed : 0
     const utilityRatePerPerson = activeMembers.length > 0 ? totalUtilities / activeMembers.length : 0
 
     const paidSet = new Set<string>()

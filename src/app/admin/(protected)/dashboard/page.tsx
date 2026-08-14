@@ -98,7 +98,7 @@ export default function AdminDashboardPage() {
             month_year: monthYear,
             monthLabel: getMonthLabel(monthYear),
             totalMeals,
-            mealRate: totalMeals > 0 ? totalGroceries / totalMeals : 0,
+            mealRate: totalMeals > 0 ? mealDepsTotal / totalMeals : 0,
             totalGroceries,
             totalUtilities,
             totalExpenses: totalGroceries + totalUtilities,
@@ -128,7 +128,8 @@ export default function AdminDashboardPage() {
         const totalGroceryCost = (groceries || []).reduce((s, r) => s + Number(r.cost), 0)
         const totalUtilityCost = (utilities || []).reduce((s, r) => s + Number(r.cost), 0)
         const totalMeals = (dailyMeals || []).reduce((s, r) => s + r.regular_meals + r.guest_meals, 0)
-        const mealRate = totalMeals > 0 ? totalGroceryCost / totalMeals : 0
+        const totalMealDepsForRate = (mealDeposits || []).reduce((s, d) => s + Number(d.amount), 0)
+        const mealRate = totalMeals > 0 ? totalMealDepsForRate / totalMeals : 0
         const utilPerPerson = (activeMembers?.length ?? 0) > 0 ? totalUtilityCost / (activeMembers?.length ?? 1) : 0
 
         const result: DebtorInfo[] = (activeMembers || []).map(m => {
@@ -251,8 +252,8 @@ export default function AdminDashboardPage() {
             // 2. Calculate final settlement
             const groceryTotal = (groceries || []).reduce((s, r) => s + Number(r.cost), 0)
             const mealsTotal = (dailyMeals || []).reduce((s, r) => s + r.regular_meals + r.guest_meals, 0)
-            const rate = mealsTotal > 0 ? groceryTotal / mealsTotal : 0
             const depositsTotal = (mealDeposits || []).reduce((s, d) => s + Number(d.amount), 0)
+            const rate = mealsTotal > 0 ? depositsTotal / mealsTotal : 0
 
             const settlementData = (members || []).map(member => {
                 const memberMeals = (dailyMeals || []).filter(r => r.member_id === member.id).reduce((s, r) => s + r.regular_meals + r.guest_meals, 0)
