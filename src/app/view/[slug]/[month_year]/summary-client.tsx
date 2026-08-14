@@ -10,6 +10,7 @@ import {
 import { toPng } from 'html-to-image'
 import NextLink from 'next/link'
 import * as XLSX from 'xlsx'
+import GrocerySubmitForm from './grocery-submit-form'
 
 type BillDetail = {
     id: string
@@ -83,6 +84,9 @@ type SummaryProps = {
         totalGroceries: number
         totalUtilities: number
     }
+    // Grocery submission props
+    adminId: string
+    members: { id: string; name: string }[]
 }
 
 // Format a YYYY-MM-DD date string to a friendly display: "Feb 25"
@@ -90,7 +94,7 @@ function fmtDate(dateStr: string) {
     return new Date(dateStr + 'T00:00:00').toLocaleDateString(undefined, { month: 'short', day: 'numeric' })
 }
 
-export default function SummaryClient({ slug, messName, monthName, monthYear, breakdown, textSummary, deadlines, isLocked, prevMonth, nextMonth, hasNextMonth, rawDeposits, stats }: SummaryProps) {
+export default function SummaryClient({ slug, messName, monthName, monthYear, breakdown, textSummary, deadlines, isLocked, prevMonth, nextMonth, hasNextMonth, rawDeposits, stats, adminId, members }: SummaryProps) {
     const [isExporting, setIsExporting] = useState(false)
     const [isExportingXlsx, setIsExportingXlsx] = useState(false)
     const [copiedLink, setCopiedLink] = useState(false)
@@ -494,7 +498,7 @@ export default function SummaryClient({ slug, messName, monthName, monthYear, br
                                                     </div>
                                                     {/* Status badge */}
                                                     <span className={`inline-block text-[10px] font-bold uppercase tracking-wide px-2 py-0.5 rounded-full ${totalPos ? 'bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-300'
-                                                        : totalNeg ? 'bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300'
+                                                        : totalNeg ? 'bg-red-600 text-white'
                                                             : 'bg-muted text-muted-foreground'
                                                         }`}>
                                                         {totalPos ? '✓ In Credit' : totalNeg ? 'Needs to Pay' : '✓ Settled'}
@@ -650,6 +654,16 @@ export default function SummaryClient({ slug, messName, monthName, monthYear, br
                         <span className="text-[10px] font-mono font-semibold text-muted-foreground/70 tracking-wide brand-glow">Developer:&nbsp;MayazAD</span>
                     </div>
                 </motion.div>
+
+                {/* Grocery Submission Form — above footer, inside the same container */}
+                {!isLocked && members.length > 0 && (
+                    <GrocerySubmitForm
+                        adminId={adminId}
+                        members={members}
+                        currentMonth={monthYear}
+                        isLocked={isLocked}
+                    />
+                )}
 
                 <p className="text-center text-[11px] text-muted-foreground/40 tracking-wide pb-6">
                     © 2026 SuperMeal&nbsp;&nbsp;|&nbsp;&nbsp;Crafted by <span className="font-mono font-semibold brand-glow">MayazAD</span>
