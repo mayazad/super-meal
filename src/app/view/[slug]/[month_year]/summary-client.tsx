@@ -336,12 +336,12 @@ export default function SummaryClient({ slug, messName, monthName, monthYear, br
                             initial={{ opacity: 0, y: -6 }}
                             animate={{ opacity: 1, y: 0 }}
                             exit={{ opacity: 0 }}
-                            className="rounded-xl border border-red-400/30 bg-red-50/30 dark:bg-red-950/20 px-4 py-3"
+                            className="rounded-xl border border-red-300 dark:border-red-900/60 bg-red-50 dark:bg-red-950/30 px-4 py-3"
                         >
-                            <p className="text-[10px] font-bold uppercase tracking-widest text-red-500 mb-2">⚠ Pending Collections</p>
+                            <p className="text-[10px] font-bold uppercase tracking-widest text-red-600 dark:text-red-400 mb-2">⚠ Pending Collections</p>
                             <div className="flex flex-wrap gap-2">
                                 {wallOfShame.map(p => (
-                                    <span key={p.id} className="inline-flex items-center gap-1 text-xs font-medium bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300 rounded-full px-2.5 py-1">
+                                    <span key={p.id} className="inline-flex items-center gap-1 text-xs font-bold bg-red-600 text-white rounded-full px-3 py-1 shadow-sm">
                                         {p.name} — {Math.abs(p.totalBalance).toFixed(0)} Tk
                                     </span>
                                 ))}
