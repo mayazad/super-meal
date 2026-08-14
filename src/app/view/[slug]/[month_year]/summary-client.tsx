@@ -4,7 +4,7 @@ import { useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
     Download, Link as LinkIcon, Check, ReceiptText, ClipboardList,
-    AlertTriangle, AlertCircle, ChevronDown, CheckCircle2, Clock, CalendarDays,
+    AlertTriangle, AlertCircle, ChevronDown, ChevronRight, CheckCircle2, Clock, CalendarDays,
     ChevronLeft, Lock, FileSpreadsheet
 } from 'lucide-react'
 import { toPng } from 'html-to-image'
@@ -267,6 +267,7 @@ export default function SummaryClient({ slug, messName, monthName, monthYear, br
                         className={`inline-flex items-center gap-1.5 px-3 py-1.5 md:px-4 md:py-2 rounded-full text-xs md:text-sm font-medium transition-colors ${hasNextMonth ? 'bg-muted text-muted-foreground hover:bg-muted/80' : 'bg-muted/50 text-muted-foreground/30 cursor-not-allowed'}`}
                         prefetch={hasNextMonth}
                     >
+                        Next <ChevronRight className="h-4 w-4" />
                     </NextLink>
                 </div>
 
