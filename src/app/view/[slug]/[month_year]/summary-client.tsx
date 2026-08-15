@@ -83,6 +83,7 @@ type SummaryProps = {
         mealRate: number
         totalGroceries: number
         totalUtilities: number
+        totalMealDeposits: number
     }
     // Grocery submission props
     adminId: string
@@ -464,6 +465,30 @@ export default function SummaryClient({ slug, messName, monthName, monthYear, br
                             <div className="text-xs text-muted-foreground mt-1">{stats.totalMeals} total meals (incl. guests)</div>
                         </div>
                     </motion.div>
+
+                    {/* Second stats row — Deposits + Remaining */}
+                    {(() => {
+                        const remaining = stats.totalMealDeposits - stats.totalGroceries
+                        const isPositive = remaining >= 0
+                        return (
+                            <motion.div variants={item} className="grid grid-cols-2 gap-4 mb-8 pt-4 border-t border-dashed">
+                                <div>
+                                    <div className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1">Total Meal Deposits</div>
+                                    <div className="text-xl font-bold">{stats.totalMealDeposits.toFixed(2)} Tk</div>
+                                    <div className="text-xs text-muted-foreground mt-1">Collected from all members</div>
+                                </div>
+                                <div className="text-right">
+                                    <div className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1">After Groceries</div>
+                                    <div className={`text-xl font-bold ${isPositive ? 'text-green-500' : 'text-red-500'}`}>
+                                        {isPositive ? '+' : ''}{remaining.toFixed(2)} Tk
+                                    </div>
+                                    <div className="text-xs text-muted-foreground mt-1">
+                                        {isPositive ? 'Surplus in fund' : 'Deficit — needs top-up'}
+                                    </div>
+                                </div>
+                            </motion.div>
+                        )
+                    })()}
 
                     <motion.h3 variants={item} className="text-xs font-bold uppercase tracking-widest text-muted-foreground mb-4">
                         Balances — Who Owes What

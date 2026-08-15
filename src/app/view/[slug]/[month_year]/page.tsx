@@ -204,7 +204,7 @@ export default async function ViewPublicSummaryPage(props: {
             nextMonth={nextMonth}
             hasNextMonth={nextMonth <= nowMonth}
             rawDeposits={rawDeposits}
-            stats={{ totalMeals: totalMealsConsumed, mealRate, totalGroceries, totalUtilities }}
+            stats={{ totalMeals: totalMealsConsumed, mealRate, totalGroceries, totalUtilities, totalMealDeposits: totalMealDepositsForRate }}
             adminId={adminId}
             members={(activeMembers || []).map(m => ({ id: m.id, name: m.name }))}
         />
