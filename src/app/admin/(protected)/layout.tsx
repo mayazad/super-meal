@@ -3,7 +3,7 @@ import { redirect } from 'next/navigation'
 import Link from 'next/link'
 import AdminLogoutButton from '../logout-button'
 import MobileNav from './mobile-nav'
-import { LayoutDashboard, Users, Utensils, ShoppingCart, Zap, Wallet, Landmark, ShieldCheck, Calculator, Archive, Activity } from 'lucide-react'
+import { LayoutDashboard, Users, Utensils, ShoppingCart, Zap, Wallet, Landmark, ShieldCheck, Calculator, Archive, Activity, ClipboardCheck } from 'lucide-react'
 
 export default async function AdminLayout({
     children,
@@ -17,10 +17,17 @@ export default async function AdminLayout({
         redirect('/admin/login')
     }
 
+    const { count: pendingMealCount } = await supabase
+        .from('meal_submissions')
+        .select('*', { count: 'exact', head: true })
+        .eq('admin_id', data.user.id)
+        .eq('status', 'pending')
+
     const navItems = [
         { name: 'Dashboard', href: '/admin/dashboard', icon: LayoutDashboard },
         { name: 'Members', href: '/admin/members', icon: Users },
         { name: 'Daily Meals', href: '/admin/meals', icon: Utensils },
+        { name: 'Meal Submissions', href: '/admin/meal-submissions', icon: ClipboardCheck, badge: pendingMealCount || 0 },
         { name: 'Meal Deposits', href: '/admin/meal-deposits', icon: Wallet },
         { name: 'Groceries', href: '/admin/groceries', icon: ShoppingCart },
         { name: 'Utility Deposits', href: '/admin/utility-deposits', icon: Landmark },
@@ -48,10 +55,17 @@ export default async function AdminLayout({
                             <Link
                                 key={item.href}
                                 href={item.href}
-                                className="flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium hover:bg-[var(--sidebar-active-bg)] hover:text-[var(--sidebar-active-text)] text-[var(--sidebar-muted)] transition-colors"
+                                className="flex items-center justify-between gap-3 rounded-lg px-3 py-2.5 text-sm font-medium hover:bg-[var(--sidebar-active-bg)] hover:text-[var(--sidebar-active-text)] text-[var(--sidebar-muted)] transition-colors"
                             >
-                                <Icon className="h-4 w-4 shrink-0" />
-                                {item.name}
+                                <div className="flex items-center gap-3">
+                                    <Icon className="h-4 w-4 shrink-0" />
+                                    {item.name}
+                                </div>
+                                {!!item.badge && (
+                                    <span className="flex h-5 w-5 items-center justify-center rounded-full bg-orange-500 text-[10px] font-bold text-white">
+                                        {item.badge}
+                                    </span>
+                                )}
                             </Link>
                         )
                     })}
@@ -78,7 +92,7 @@ export default async function AdminLayout({
             </aside>
 
             {/* Mobile Navigation (hamburger + drawer) */}
-            <MobileNav userEmail={data.user.email ?? ''} isSenpai={data.user.email === process.env.NEXT_PUBLIC_SENPAI_EMAIL} />
+            <MobileNav userEmail={data.user.email ?? ''} isSenpai={data.user.email === process.env.NEXT_PUBLIC_SENPAI_EMAIL} pendingMealCount={pendingMealCount || 0} />
 
             {/* Main Content Area */}
             <main className="flex-1 min-w-0 lg:ml-64 flex flex-col min-h-screen">

@@ -14,14 +14,29 @@ type LedgerRow = {
     id: string
     date: string
     member_id: string
+    breakfast: number
+    lunch: number
+    dinner: number
+    guest_breakfast: number
+    guest_lunch: number
+    guest_dinner: number
     regular_meals: number
     guest_meals: number
     created_at: string
 }
 
+type MealSlots = {
+    breakfast: number
+    lunch: number
+    dinner: number
+    guest_breakfast: number
+    guest_lunch: number
+    guest_dinner: number
+}
+
 export default function MealsPage() {
     const [members, setMembers] = useState<Member[]>([])
-    const [meals, setMeals] = useState<Record<string, { regular: number; guest: number }>>({})
+    const [meals, setMeals] = useState<Record<string, MealSlots>>({})
     const [ledger, setLedger] = useState<LedgerRow[]>([])
     const [isLoading, setIsLoading] = useState(true)
     const [isLoadingLedger, setIsLoadingLedger] = useState(false)
@@ -29,6 +44,7 @@ export default function MealsPage() {
     const [isSubmitting, setIsSubmitting] = useState(false)
     const [saveSuccess, setSaveSuccess] = useState(false)
     const [isLocked, setIsLocked] = useState(false)
+    const [breakfastEnabled, setBreakfastEnabled] = useState(false)
 
     const supabase = createClient()
     const today = new Date().toISOString().split('T')[0]
@@ -45,21 +61,40 @@ export default function MealsPage() {
         setIsLoading(true)
         setError(null)
         try {
-            const [{ data: membersData }, { data: mealsData }, { data: lockedData }] = await Promise.all([
+            const [
+                { data: membersData }, 
+                { data: mealsData }, 
+                { data: lockedData },
+                { data: profileData }
+            ] = await Promise.all([
                 supabase.from('members').select('id, name').eq('is_active', true).eq('admin_id', adminId).order('name'),
                 supabase.from('daily_meals')
-                    .select('member_id, regular_meals, guest_meals')
+                    .select('member_id, breakfast, lunch, dinner, guest_breakfast, guest_lunch, guest_dinner')
                     .eq('date', dateFilter)
                     .eq('admin_id', adminId),
-                supabase.from('locked_months').select('id').eq('month_year', monthYear).eq('admin_id', adminId)
+                supabase.from('locked_months').select('id').eq('month_year', monthYear).eq('admin_id', adminId),
+                supabase.from('profiles').select('breakfast_enabled').eq('id', adminId).single()
             ])
+            
             const mems = membersData || []
             setMembers(mems)
             setIsLocked((lockedData?.length ?? 0) > 0)
-            const mealMap: Record<string, { regular: number; guest: number }> = {}
+            setBreakfastEnabled(profileData?.breakfast_enabled || false)
+            
+            const mealMap: Record<string, MealSlots> = {}
             mems.forEach(m => {
                 const rec = mealsData?.find(r => r.member_id === m.id)
-                mealMap[m.id] = rec ? { regular: rec.regular_meals, guest: rec.guest_meals } : { regular: 0, guest: 0 }
+                mealMap[m.id] = rec ? { 
+                    breakfast: rec.breakfast,
+                    lunch: rec.lunch,
+                    dinner: rec.dinner,
+                    guest_breakfast: rec.guest_breakfast,
+                    guest_lunch: rec.guest_lunch,
+                    guest_dinner: rec.guest_dinner
+                } : { 
+                    breakfast: 0, lunch: 0, dinner: 0, 
+                    guest_breakfast: 0, guest_lunch: 0, guest_dinner: 0 
+                }
             })
             setMeals(mealMap)
         } catch {
@@ -75,7 +110,7 @@ export default function MealsPage() {
         setIsLoadingLedger(true)
         const { data } = await supabase
             .from('daily_meals')
-            .select('id, date, member_id, regular_meals, guest_meals, created_at')
+            .select('id, date, member_id, breakfast, lunch, dinner, guest_breakfast, guest_lunch, guest_dinner, regular_meals, guest_meals, created_at')
             .eq('month_year', monthYear)
             .eq('admin_id', adminId)
             .order('date', { ascending: false })
@@ -98,9 +133,9 @@ export default function MealsPage() {
         return () => { supabase.removeChannel(channel) }
     }, [fetchLedger]) // eslint-disable-line react-hooks/exhaustive-deps
 
-    const handleMealChange = (memberId: string, type: 'regular' | 'guest', inc: number) => {
+    const handleMealChange = (memberId: string, type: keyof MealSlots, inc: number) => {
         if (isLocked) return
-        const cur = meals[memberId] || { regular: 0, guest: 0 }
+        const cur = meals[memberId] || { breakfast: 0, lunch: 0, dinner: 0, guest_breakfast: 0, guest_lunch: 0, guest_dinner: 0 }
         setMeals({ ...meals, [memberId]: { ...cur, [type]: Math.max(0, cur[type] + inc) } })
     }
 
@@ -108,14 +143,20 @@ export default function MealsPage() {
     const handleSaveAll = async () => {
         if (!adminId || isLocked) return
         setIsSubmitting(true)
-        const payload = members.map(m => ({
-            member_id: m.id,
-            date: dateFilter,
-            month_year: monthYear,
-            regular_meals: meals[m.id]?.regular || 0,
-            guest_meals: meals[m.id]?.guest || 0,
-            admin_id: adminId,
-        }))
+        const payload = members.map(m => {
+            const slots = meals[m.id] || { breakfast: 0, lunch: 0, dinner: 0, guest_breakfast: 0, guest_lunch: 0, guest_dinner: 0 }
+            const regular = slots.breakfast + slots.lunch + slots.dinner
+            const guest = slots.guest_breakfast + slots.guest_lunch + slots.guest_dinner
+            return {
+                member_id: m.id,
+                date: dateFilter,
+                month_year: monthYear,
+                admin_id: adminId,
+                ...slots,
+                regular_meals: regular,
+                guest_meals: guest,
+            }
+        })
 
         const { error } = await supabase
             .from('daily_meals')
@@ -134,11 +175,53 @@ export default function MealsPage() {
     }
 
     const getMemberName = (id: string) => members.find(m => m.id === id)?.name ?? '—'
-    const totalMealsToday = Object.values(meals).reduce((s, c) => s + c.regular + c.guest, 0)
+    
+    // Totals for the page
+    const totalMealsToday = Object.values(meals).reduce((s, c) => 
+        s + c.breakfast + c.lunch + c.dinner + c.guest_breakfast + c.guest_lunch + c.guest_dinner, 0
+    )
 
-    // Totals for the ledger footer
     const ledgerTotalRegular = ledger.reduce((s, r) => s + r.regular_meals, 0)
     const ledgerTotalGuest = ledger.reduce((s, r) => s + r.guest_meals, 0)
+    const ledgerTotalBreakfast = ledger.reduce((s, r) => s + r.breakfast, 0)
+    const ledgerTotalLunch = ledger.reduce((s, r) => s + r.lunch, 0)
+    const ledgerTotalDinner = ledger.reduce((s, r) => s + r.dinner, 0)
+    const ledgerTotalGuestBreakfast = ledger.reduce((s, r) => s + r.guest_breakfast, 0)
+    const ledgerTotalGuestLunch = ledger.reduce((s, r) => s + r.guest_lunch, 0)
+    const ledgerTotalGuestDinner = ledger.reduce((s, r) => s + r.guest_dinner, 0)
+
+    const baseFields = [
+        { key: 'lunch', label: 'Lunch' },
+        { key: 'dinner', label: 'Dinner' }
+    ] as const
+    const guestFields = [
+        { key: 'guest_lunch', label: 'Guest L.' },
+        { key: 'guest_dinner', label: 'Guest D.' }
+    ] as const
+
+    const renderCounter = (memberId: string, type: keyof MealSlots, label: string) => {
+        const val = meals[memberId]?.[type] || 0;
+        return (
+            <div key={type} className="flex items-center justify-between border rounded-md p-1 bg-muted/10">
+                <span className="text-xs font-medium w-16 text-center text-muted-foreground">{label}</span>
+                <button
+                    onClick={() => handleMealChange(memberId, type, -1)}
+                    disabled={val === 0 || isLocked}
+                    className="p-1 hover:bg-muted rounded-md transition-colors disabled:opacity-30 disabled:pointer-events-none min-w-[32px] min-h-[32px] flex items-center justify-center"
+                >
+                    <Minus className="h-4 w-4" />
+                </button>
+                <span className="text-base font-bold w-6 text-center">{val}</span>
+                <button
+                    onClick={() => handleMealChange(memberId, type, 1)}
+                    disabled={isLocked}
+                    className="p-1 hover:bg-muted rounded-md transition-colors min-w-[32px] min-h-[32px] flex items-center justify-center"
+                >
+                    <Plus className="h-4 w-4" />
+                </button>
+            </div>
+        )
+    }
 
     return (
         <div className="space-y-10 max-w-4xl">
@@ -188,43 +271,29 @@ export default function MealsPage() {
                     <div className="p-6">
                         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
                             <AnimatePresence>
-                                {members.map((member) => {
-                                    const cur = meals[member.id] || { regular: 0, guest: 0 };
-                                    return (
-                                        <motion.div
-                                            key={member.id}
-                                            initial={{ opacity: 0, scale: 0.95 }}
-                                            animate={{ opacity: 1, scale: 1 }}
-                                            className="flex flex-col space-y-3 p-4 border rounded-lg bg-background"
-                                        >
-                                            <div className="flex items-center gap-2 font-medium">
-                                                <UserIcon className="h-4 w-4 text-muted-foreground" />
-                                                {member.name}
-                                            </div>
+                                {members.map((member) => (
+                                    <motion.div
+                                        key={member.id}
+                                        initial={{ opacity: 0, scale: 0.95 }}
+                                        animate={{ opacity: 1, scale: 1 }}
+                                        className="flex flex-col space-y-3 p-4 border rounded-lg bg-background"
+                                    >
+                                        <div className="flex items-center gap-2 font-medium mb-1">
+                                            <UserIcon className="h-4 w-4 text-muted-foreground" />
+                                            {member.name}
+                                        </div>
 
-                                            {(['regular', 'guest'] as const).map(type => (
-                                                <div key={type} className="flex items-center justify-between border rounded-md p-1 bg-muted/10">
-                                                    <span className="text-xs font-medium w-14 text-center capitalize">{type}</span>
-                                                    <button
-                                                        onClick={() => handleMealChange(member.id, type, -1)}
-                                                        disabled={cur[type] === 0 || isLocked}
-                                                        className="p-2 hover:bg-muted rounded-md transition-colors disabled:opacity-30 disabled:pointer-events-none min-w-[44px] min-h-[44px] flex items-center justify-center"
-                                                    >
-                                                        <Minus className="h-4 w-4" />
-                                                    </button>
-                                                    <span className="text-lg font-bold w-8 text-center">{cur[type] || 0}</span>
-                                                    <button
-                                                        onClick={() => handleMealChange(member.id, type, 1)}
-                                                        disabled={isLocked}
-                                                        className="p-2 hover:bg-muted rounded-md transition-colors min-w-[44px] min-h-[44px] flex items-center justify-center"
-                                                    >
-                                                        <Plus className="h-4 w-4" />
-                                                    </button>
-                                                </div>
-                                            ))}
-                                        </motion.div>
-                                    );
-                                })}
+                                        <div className="space-y-1.5">
+                                            {breakfastEnabled && renderCounter(member.id, 'breakfast', 'Breakfast')}
+                                            {baseFields.map(f => renderCounter(member.id, f.key, f.label))}
+                                        </div>
+                                        
+                                        <div className="pt-2 border-t space-y-1.5">
+                                            {breakfastEnabled && renderCounter(member.id, 'guest_breakfast', 'Guest B.')}
+                                            {guestFields.map(f => renderCounter(member.id, f.key, f.label))}
+                                        </div>
+                                    </motion.div>
+                                ))}
                             </AnimatePresence>
                         </div>
 
@@ -287,9 +356,12 @@ export default function MealsPage() {
                                     <tr>
                                         <th className="text-left p-3 pl-4 font-semibold">Date</th>
                                         <th className="text-left p-3 font-semibold">Member</th>
-                                        <th className="text-center p-3 font-semibold">Regular</th>
-                                        <th className="text-center p-3 font-semibold">Guest</th>
-                                        <th className="text-center p-3 pr-4 font-semibold">Total</th>
+                                        {breakfastEnabled && <th className="text-center p-3 font-semibold text-muted-foreground">B</th>}
+                                        <th className="text-center p-3 font-semibold text-muted-foreground">L</th>
+                                        <th className="text-center p-3 font-semibold text-muted-foreground">D</th>
+                                        <th className="text-center p-3 font-semibold border-l">Reg.</th>
+                                        <th className="text-center p-3 font-semibold border-l text-muted-foreground">Guest</th>
+                                        <th className="text-center p-3 pr-4 font-semibold border-l">Total</th>
                                     </tr>
                                 </thead>
                                 <tbody className="divide-y">
@@ -304,9 +376,13 @@ export default function MealsPage() {
                                             >
                                                 <td className="p-3 pl-4 font-mono text-xs text-muted-foreground">{row.date}</td>
                                                 <td className="p-3 font-medium">{getMemberName(row.member_id)}</td>
-                                                <td className="p-3 text-center">{row.regular_meals}</td>
-                                                <td className="p-3 text-center text-muted-foreground">{row.guest_meals}</td>
-                                                <td className="p-3 pr-4 text-center font-semibold">
+                                                {breakfastEnabled && <td className="p-3 text-center text-muted-foreground">{row.breakfast}</td>}
+                                                <td className="p-3 text-center text-muted-foreground">{row.lunch}</td>
+                                                <td className="p-3 text-center text-muted-foreground">{row.dinner}</td>
+                                                
+                                                <td className="p-3 text-center border-l bg-muted/5">{row.regular_meals}</td>
+                                                <td className="p-3 text-center text-muted-foreground border-l bg-muted/5">{row.guest_meals}</td>
+                                                <td className="p-3 pr-4 text-center font-semibold border-l bg-muted/10">
                                                     {row.regular_meals + row.guest_meals}
                                                 </td>
                                             </motion.tr>
@@ -318,12 +394,15 @@ export default function MealsPage() {
                                         <td colSpan={2} className="p-3 pl-4 text-xs font-bold uppercase tracking-wide text-muted-foreground">
                                             Month Totals
                                         </td>
-                                        <td className="p-3 text-center font-bold">{ledgerTotalRegular}</td>
-                                        <td className="p-3 text-center font-bold text-muted-foreground">{ledgerTotalGuest}</td>
-                                        <td className="p-3 pr-4 text-center font-bold">{ledgerTotalRegular + ledgerTotalGuest}</td>
+                                        {breakfastEnabled && <td className="p-3 text-center font-bold text-muted-foreground">{ledgerTotalBreakfast}</td>}
+                                        <td className="p-3 text-center font-bold text-muted-foreground">{ledgerTotalLunch}</td>
+                                        <td className="p-3 text-center font-bold text-muted-foreground">{ledgerTotalDinner}</td>
+                                        <td className="p-3 text-center font-bold border-l">{ledgerTotalRegular}</td>
+                                        <td className="p-3 text-center font-bold text-muted-foreground border-l">{ledgerTotalGuest}</td>
+                                        <td className="p-3 pr-4 text-center font-bold border-l">{ledgerTotalRegular + ledgerTotalGuest}</td>
                                     </tr>
                                     <tr>
-                                        <td colSpan={5} className="px-4 pb-3 pt-1">
+                                        <td colSpan={breakfastEnabled ? 8 : 7} className="px-4 pb-3 pt-1">
                                             <p className="text-[11px] text-muted-foreground/50 tracking-wide">
                                                 Meal Ledger · SuperMeal · Crafted by <span className="font-mono font-semibold">MayazAD</span>
                                             </p>

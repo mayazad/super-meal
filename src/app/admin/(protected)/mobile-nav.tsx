@@ -4,13 +4,14 @@ import { useState, useEffect } from 'react'
 import { usePathname, useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Menu, X, LayoutDashboard, Users, Utensils, ShoppingCart, Zap, Wallet, Landmark, LogOut, ShieldCheck, Calculator, Archive, Activity } from 'lucide-react'
+import { Menu, X, LayoutDashboard, Users, Utensils, ShoppingCart, Zap, Wallet, Landmark, LogOut, ShieldCheck, Calculator, Archive, Activity, ClipboardCheck } from 'lucide-react'
 import { createClient } from '@/utils/supabase/client'
 
 const navItems = [
     { name: 'Dashboard', href: '/admin/dashboard', icon: LayoutDashboard },
     { name: 'Members', href: '/admin/members', icon: Users },
     { name: 'Daily Meals', href: '/admin/meals', icon: Utensils },
+    { name: 'Meal Submissions', href: '/admin/meal-submissions', icon: ClipboardCheck },
     { name: 'Meal Deposits', href: '/admin/meal-deposits', icon: Wallet },
     { name: 'Groceries', href: '/admin/groceries', icon: ShoppingCart },
     { name: 'Utility Deposits', href: '/admin/utility-deposits', icon: Landmark },
@@ -23,9 +24,10 @@ const navItems = [
 type Props = {
     userEmail: string
     isSenpai?: boolean
+    pendingMealCount?: number
 }
 
-export default function MobileNav({ userEmail, isSenpai }: Props) {
+export default function MobileNav({ userEmail, isSenpai, pendingMealCount = 0 }: Props) {
     const [isOpen, setIsOpen] = useState(false)
     const pathname = usePathname()
     const router = useRouter()
@@ -136,19 +138,27 @@ export default function MobileNav({ userEmail, isSenpai }: Props) {
                             {navItems.map((item) => {
                                 const Icon = item.icon
                                 const isActive = pathname === item.href
+                                const badge = item.name === 'Meal Submissions' ? pendingMealCount : undefined
                                 return (
                                     <Link
                                         key={item.href}
                                         href={item.href}
                                         onClick={close}
-                                        className="flex items-center gap-3 rounded-lg px-4 py-3 text-sm font-medium transition-colors min-h-[48px]"
+                                        className="flex items-center justify-between gap-3 rounded-lg px-4 py-3 text-sm font-medium transition-colors min-h-[48px]"
                                         style={isActive
                                             ? { background: 'var(--sidebar-active-bg)', color: 'var(--sidebar-active-text)' }
                                             : { color: 'var(--sidebar-muted)' }
                                         }
                                     >
-                                        <Icon className="h-5 w-5 shrink-0" />
-                                        {item.name}
+                                        <div className="flex items-center gap-3">
+                                            <Icon className="h-5 w-5 shrink-0" />
+                                            {item.name}
+                                        </div>
+                                        {!!badge && badge > 0 && (
+                                            <span className="flex h-5 w-5 items-center justify-center rounded-full bg-orange-500 text-[10px] font-bold text-white">
+                                                {badge}
+                                            </span>
+                                        )}
                                     </Link>
                                 )
                             })}

@@ -11,6 +11,9 @@ import { toPng } from 'html-to-image'
 import NextLink from 'next/link'
 import * as XLSX from 'xlsx'
 import GrocerySubmitForm from './grocery-submit-form'
+import MealSubmitForm from './meal-submit-form'
+import MonthPicker from '@/components/ui/month-picker'
+import { Calendar } from 'lucide-react'
 
 type BillDetail = {
     id: string
@@ -24,6 +27,12 @@ type MealLogEntry = {
     date: string
     regular: number
     guest: number
+    breakfast: number
+    lunch: number
+    dinner: number
+    guest_breakfast: number
+    guest_lunch: number
+    guest_dinner: number
 }
 
 type BreakdownItem = {
@@ -88,6 +97,7 @@ type SummaryProps = {
     // Grocery submission props
     adminId: string
     members: { id: string; name: string }[]
+    breakfastEnabled?: boolean
 }
 
 // Format a YYYY-MM-DD date string to a friendly display: "Feb 25"
@@ -95,13 +105,14 @@ function fmtDate(dateStr: string) {
     return new Date(dateStr + 'T00:00:00').toLocaleDateString(undefined, { month: 'short', day: 'numeric' })
 }
 
-export default function SummaryClient({ slug, messName, monthName, monthYear, breakdown, textSummary, deadlines, isLocked, prevMonth, nextMonth, hasNextMonth, rawDeposits, stats, adminId, members }: SummaryProps) {
+export default function SummaryClient({ slug, messName, monthName, monthYear, breakdown, textSummary, deadlines, isLocked, prevMonth, nextMonth, hasNextMonth, rawDeposits, stats, adminId, members, breakfastEnabled }: SummaryProps) {
     const [isExporting, setIsExporting] = useState(false)
     const [isExportingXlsx, setIsExportingXlsx] = useState(false)
     const [copiedLink, setCopiedLink] = useState(false)
     const [copiedSummary, setCopiedSummary] = useState(false)
     const [expandedUtil, setExpandedUtil] = useState<Set<string>>(new Set())
     const [expandedLog, setExpandedLog] = useState<Set<string>>(new Set())
+    const [showMonthPicker, setShowMonthPicker] = useState(false)
 
     // ── Excel helpers ─────────────────────────────────────────────────────────
     const buildWorkbook = (filterMemberId?: string) => {
@@ -256,7 +267,7 @@ export default function SummaryClient({ slug, messName, monthName, monthYear, br
             <div className="max-w-2xl mx-auto space-y-6">
 
                 {/* Month Navigation */}
-                <div className="flex gap-2">
+                <div className="flex gap-2 relative">
                     <NextLink href={`/view/${slug}/${prevMonth}`}
                         className="inline-flex items-center gap-1.5 px-3 py-1.5 md:px-4 md:py-2 bg-muted text-muted-foreground hover:bg-muted/80 rounded-full text-xs md:text-sm font-medium transition-colors"
                         prefetch={true}
@@ -270,6 +281,22 @@ export default function SummaryClient({ slug, messName, monthName, monthYear, br
                     >
                         Next <ChevronRight className="h-4 w-4" />
                     </NextLink>
+                    <button
+                        onClick={() => setShowMonthPicker(v => !v)}
+                        className={`inline-flex items-center justify-center w-8 h-8 md:w-9 md:h-9 md:ml-1 rounded-full border bg-background hover:bg-muted transition-colors ${showMonthPicker ? 'ring-2 ring-foreground' : ''}`}
+                        title="Jump to month"
+                    >
+                        <Calendar className="h-4 w-4 text-muted-foreground" />
+                    </button>
+                    <AnimatePresence>
+                        {showMonthPicker && (
+                            <MonthPicker
+                                currentMonth={monthYear}
+                                slug={slug}
+                                onClose={() => setShowMonthPicker(false)}
+                            />
+                        )}
+                    </AnimatePresence>
                 </div>
 
                 {/* Locked banner */}
@@ -649,11 +676,22 @@ export default function SummaryClient({ slug, messName, monthName, monthYear, br
                                                             Meal Calendar — {monthName}
                                                         </p>
                                                         {person.mealLog.map(entry => (
-                                                            <div key={entry.date} className="flex items-center justify-between text-xs rounded-md px-2 py-1.5 bg-background/60 border">
+                                                            <div key={entry.date} className="flex flex-col sm:flex-row sm:items-center justify-between text-xs rounded-md px-2 py-1.5 bg-background/60 border gap-2">
                                                                 <span className="font-mono font-medium text-muted-foreground">{fmtDate(entry.date)}</span>
-                                                                <div className="flex items-center gap-3">
-                                                                    <span>{entry.regular} Regular</span>
-                                                                    {entry.guest > 0 && <span className="text-muted-foreground">+ {entry.guest} Guest</span>}
+                                                                <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
+                                                                    <div className="flex gap-2">
+                                                                        {breakfastEnabled && <span>B:{entry.breakfast}</span>}
+                                                                        <span>L:{entry.lunch}</span>
+                                                                        <span>D:{entry.dinner}</span>
+                                                                    </div>
+                                                                    {entry.guest > 0 && (
+                                                                        <div className="flex gap-2 text-muted-foreground border-l pl-3 border-border/50">
+                                                                            <span className="font-medium mr-1">Guest:</span>
+                                                                            {breakfastEnabled && entry.guest_breakfast > 0 && <span>B:{entry.guest_breakfast}</span>}
+                                                                            {entry.guest_lunch > 0 && <span>L:{entry.guest_lunch}</span>}
+                                                                            {entry.guest_dinner > 0 && <span>D:{entry.guest_dinner}</span>}
+                                                                        </div>
+                                                                    )}
                                                                 </div>
                                                             </div>
                                                         ))}
@@ -681,14 +719,23 @@ export default function SummaryClient({ slug, messName, monthName, monthYear, br
                     </div>
                 </motion.div>
 
-                {/* Grocery Submission Form — above footer, inside the same container */}
+                {/* Submission Forms — above footer, inside the same container */}
                 {!isLocked && members.length > 0 && (
-                    <GrocerySubmitForm
-                        adminId={adminId}
-                        members={members}
-                        currentMonth={monthYear}
-                        isLocked={isLocked}
-                    />
+                    <div className="space-y-4">
+                        <MealSubmitForm
+                            adminId={adminId}
+                            members={members}
+                            currentMonth={monthYear}
+                            isLocked={isLocked}
+                            breakfastEnabled={breakfastEnabled}
+                        />
+                        <GrocerySubmitForm
+                            adminId={adminId}
+                            members={members}
+                            currentMonth={monthYear}
+                            isLocked={isLocked}
+                        />
+                    </div>
                 )}
 
                 <p className="text-center text-[11px] text-muted-foreground/40 tracking-wide pb-6">

@@ -57,6 +57,8 @@ export default function AdminDashboardPage() {
     const [isSavingTheme, setIsSavingTheme] = useState(false)
     const [broadcastMsg, setBroadcastMsg] = useState('')
     const [messSlug, setMessSlug] = useState('')
+    const [breakfastEnabled, setBreakfastEnabled] = useState(false)
+    const [isSavingBreakfast, setIsSavingBreakfast] = useState(false)
     const [showCloseModal, setShowCloseModal] = useState(false)
     const [isClosingMonth, setIsClosingMonth] = useState(false)
     const [closeSuccess, setCloseSuccess] = useState(false)
@@ -167,12 +169,13 @@ export default function AdminDashboardPage() {
                 if (globalSettingsData.broadcast_message) setBroadcastMsg(globalSettingsData.broadcast_message)
             }
 
-            // Load this admin's personal theme and mess_slug from their profile
-            const { data: profileData } = await supabase.from('profiles').select('selected_theme, mess_slug').eq('id', adminId).single()
+            // Load this admin's personal theme, mess_slug, and meal slot prefs from their profile
+            const { data: profileData } = await supabase.from('profiles').select('selected_theme, mess_slug, breakfast_enabled').eq('id', adminId).single()
             if (profileData?.selected_theme) {
                 setActiveThemeState(profileData.selected_theme as 'classic' | 'emerald')
             }
             if (profileData?.mess_slug) setMessSlug(profileData.mess_slug)
+            setBreakfastEnabled(profileData?.breakfast_enabled || false)
             fetchDebtors(selectedMonth, adminId)
         } catch {
             setError('Could not load dashboard data. Check your connection and try again.')
@@ -211,6 +214,15 @@ export default function AdminDashboardPage() {
         // Save to this admin's own profile row (per-admin, not global)
         await supabase.from('profiles').update({ selected_theme: theme }).eq('id', adminId)
         setIsSavingTheme(false)
+    }
+
+    const handleToggleBreakfast = async () => {
+        if (!adminId) return
+        setIsSavingBreakfast(true)
+        const newValue = !breakfastEnabled
+        setBreakfastEnabled(newValue) // optimistic update
+        await supabase.from('profiles').update({ breakfast_enabled: newValue }).eq('id', adminId)
+        setIsSavingBreakfast(false)
     }
 
     const handleCopyDueList = () => {
@@ -614,6 +626,31 @@ export default function AdminDashboardPage() {
                     </button>
                 </div>
                 {isSavingTheme && <p className="text-xs text-muted-foreground">Applying theme to all screens…</p>}
+            </div>
+
+            {/* ── Meal Slot Preferences ────────────────────────────────────── */}
+            <div className="rounded-xl border bg-card shadow-sm p-6 space-y-4">
+                <div className="flex items-center gap-2">
+                    <div className="p-1.5 rounded-md bg-muted text-muted-foreground">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 2v7c0 1.1.9 2 2 2h4a2 2 0 0 0 2-2V2"/><path d="M7 2v20"/><path d="M21 15V2v0a5 5 0 0 0-5 5v6c0 1.1.9 2 2 2h3Zm0 0v7"/></svg>
+                    </div>
+                    <h3 className="font-semibold text-lg">Meal Slot Preferences</h3>
+                </div>
+                <div className="flex items-start justify-between border rounded-xl p-4 transition-colors hover:bg-muted/30">
+                    <div className="space-y-1">
+                        <h4 className="font-medium">Enable Breakfast</h4>
+                        <p className="text-sm text-muted-foreground">
+                            When enabled, a Breakfast counter appears in daily meal logging for both regular and guest meals.
+                        </p>
+                    </div>
+                    <button
+                        onClick={handleToggleBreakfast}
+                        disabled={isSavingBreakfast}
+                        className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer items-center rounded-full border-2 border-transparent transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background disabled:cursor-not-allowed disabled:opacity-50 ${breakfastEnabled ? 'bg-foreground' : 'bg-input'}`}
+                    >
+                        <span className={`pointer-events-none block h-5 w-5 rounded-full bg-background shadow-lg ring-0 transition-transform ${breakfastEnabled ? 'translate-x-5' : 'translate-x-0'}`} />
+                    </button>
+                </div>
             </div>
 
         </div >

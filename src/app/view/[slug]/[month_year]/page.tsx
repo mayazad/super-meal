@@ -33,7 +33,7 @@ export default async function ViewPublicSummaryPage(props: {
     const supabase = await createClient()
 
     // 1. Resolve slug to admin_id
-    const { data: profile } = await supabase.from('profiles').select('id, mess_name, role').eq('mess_slug', slug).single()
+    const { data: profile } = await supabase.from('profiles').select('id, mess_name, role, breakfast_enabled').eq('mess_slug', slug).single()
     if (!profile || profile.role === 'revoked') {
         return (
             <div className="min-h-screen flex flex-col items-center justify-center p-4 bg-background text-foreground">
@@ -46,6 +46,7 @@ export default async function ViewPublicSummaryPage(props: {
 
     const adminId = profile.id
     const messNameTitle = profile.mess_name
+    const breakfastEnabled = profile.breakfast_enabled || false
 
     // 2. Fetch specific data for this admin_id
     const [
@@ -129,7 +130,17 @@ export default async function ViewPublicSummaryPage(props: {
         // Day-by-day meal log for the public "View Meal Log" expandable
         const mealLog = memberDailyRecords
             .filter(r => r.regular_meals + r.guest_meals > 0)
-            .map(r => ({ date: r.date, regular: r.regular_meals, guest: r.guest_meals }))
+            .map(r => ({ 
+                date: r.date, 
+                regular: r.regular_meals, 
+                guest: r.guest_meals,
+                breakfast: r.breakfast,
+                lunch: r.lunch,
+                dinner: r.dinner,
+                guest_breakfast: r.guest_breakfast,
+                guest_lunch: r.guest_lunch,
+                guest_dinner: r.guest_dinner
+            }))
 
         return {
             id: member.id, name: member.name,
@@ -207,6 +218,7 @@ export default async function ViewPublicSummaryPage(props: {
             stats={{ totalMeals: totalMealsConsumed, mealRate, totalGroceries, totalUtilities, totalMealDeposits: totalMealDepositsForRate }}
             adminId={adminId}
             members={(activeMembers || []).map(m => ({ id: m.id, name: m.name }))}
+            breakfastEnabled={breakfastEnabled}
         />
     )
 }
