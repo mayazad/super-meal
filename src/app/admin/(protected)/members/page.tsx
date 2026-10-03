@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react'
 import { createClient } from '@/utils/supabase/client'
 import { useAdmin } from '@/hooks/use-admin'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Trash2, Plus, Loader2, RotateCcw } from 'lucide-react'
+import { Trash2, Plus, Loader2, RotateCcw, Phone } from 'lucide-react'
 import { SkeletonRow } from '@/components/ui/skeleton'
 import { PageError } from '@/components/ui/page-error'
 
@@ -13,6 +13,7 @@ type Member = {
     name: string
     is_active: boolean
     created_at: string
+    whatsapp_number: string | null
 }
 
 export default function MembersPage() {
@@ -141,11 +142,26 @@ export default function MembersPage() {
                                         animate={{ opacity: 1, height: 'auto' }}
                                         exit={{ opacity: 0, height: 0 }}
                                         transition={{ duration: 0.2 }}
-                                        className="flex items-center justify-between p-4"
+                                        className="flex items-center justify-between p-4 gap-3"
                                     >
-                                        <div>
+                                        <div className="flex-1 min-w-0">
                                             <p className="font-medium flex items-center gap-2">{member.name}</p>
-                                            <p className="text-xs text-muted-foreground">
+                                            <div className="flex items-center gap-1.5 mt-1.5">
+                                                <Phone className="h-3 w-3 text-muted-foreground shrink-0" />
+                                                <input
+                                                    type="tel"
+                                                    placeholder="+880..."
+                                                    defaultValue={member.whatsapp_number ?? ''}
+                                                    onBlur={async (e) => {
+                                                        const val = e.target.value.trim() || null
+                                                        if (val === (member.whatsapp_number ?? '')) return
+                                                        await supabase.from('members').update({ whatsapp_number: val }).eq('id', member.id).eq('admin_id', adminId)
+                                                        setMembers(prev => prev.map(m => m.id === member.id ? { ...m, whatsapp_number: val } : m))
+                                                    }}
+                                                    className="text-xs bg-transparent border-b border-dashed border-muted-foreground/30 focus:border-foreground outline-none w-32 py-0.5 text-muted-foreground placeholder:text-muted-foreground/40 transition-colors"
+                                                />
+                                            </div>
+                                            <p className="text-xs text-muted-foreground mt-0.5">
                                                 Added {new Date(member.created_at).toLocaleDateString()}
                                             </p>
                                         </div>

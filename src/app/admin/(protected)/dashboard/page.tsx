@@ -6,7 +6,7 @@ import { useAdmin } from '@/hooks/use-admin'
 import { motion, AnimatePresence } from 'framer-motion'
 import { SkeletonPage } from '@/components/ui/skeleton'
 import { PageError } from '@/components/ui/page-error'
-import { ChevronLeft, ChevronRight, Lock, Unlock, ExternalLink, TrendingUp, Copy, Check, AlertTriangle, Palette, Archive, Loader2 } from 'lucide-react'
+import { ChevronLeft, ChevronRight, Lock, Unlock, ExternalLink, TrendingUp, Copy, Check, AlertTriangle, Palette, Archive, Loader2, MessageCircle } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 
 type MonthStats = {
@@ -61,6 +61,9 @@ export default function AdminDashboardPage() {
     const [isSavingBreakfast, setIsSavingBreakfast] = useState(false)
     const [showCloseModal, setShowCloseModal] = useState(false)
     const [isClosingMonth, setIsClosingMonth] = useState(false)
+    const [isSendingWA, setIsSendingWA] = useState(false)
+    const [waSentCount, setWaSentCount] = useState(0)
+    const [waTotal, setWaTotal] = useState(0)
     const [closeSuccess, setCloseSuccess] = useState(false)
 
     // Show Close Month only in last 7 days of the current calendar month
@@ -651,6 +654,130 @@ export default function AdminDashboardPage() {
                         <span className={`pointer-events-none block h-5 w-5 rounded-full bg-background shadow-lg ring-0 transition-transform ${breakfastEnabled ? 'translate-x-5' : 'translate-x-0'}`} />
                     </button>
                 </div>
+            </div>
+
+            {/* ── WhatsApp Statement Sender ──────────────────────────────────── */}
+            <div className="rounded-xl border bg-card shadow-sm p-6 space-y-4">
+                <div className="flex items-center gap-2">
+                    <MessageCircle className="h-5 w-5 text-green-500" />
+                    <h3 className="font-semibold text-lg">Send Statements via WhatsApp</h3>
+                </div>
+                <p className="text-sm text-muted-foreground">
+                    Opens WhatsApp with each member&apos;s pre-filled statement. You just tap &quot;Send&quot; for each one.
+                    <br />
+                    <span className="text-xs">Add WhatsApp numbers on the <a href="/admin/members" className="underline hover:text-foreground">Members</a> page first.</span>
+                </p>
+                <button
+                    onClick={async () => {
+                        if (!adminId) return
+                        setIsSendingWA(true)
+                        setWaSentCount(0)
+
+                        // Fetch members with WhatsApp numbers
+                        const { data: waMembers } = await supabase
+                            .from('members')
+                            .select('id, name, whatsapp_number')
+                            .eq('is_active', true)
+                            .eq('admin_id', adminId)
+                            .not('whatsapp_number', 'is', null)
+                            .order('name')
+
+                        const eligible = (waMembers || []).filter(m => m.whatsapp_number?.trim())
+                        if (eligible.length === 0) {
+                            alert('No members have WhatsApp numbers set. Add them on the Members page.')
+                            setIsSendingWA(false)
+                            return
+                        }
+
+                        setWaTotal(eligible.length)
+
+                        // Fetch data for statement generation
+                        const [
+                            { data: dailyMeals },
+                            { data: groceries },
+                            { data: utilities },
+                            { data: mealDeposits },
+                            { data: utilityDeposits },
+                        ] = await Promise.all([
+                            supabase.from('daily_meals').select('member_id, regular_meals, guest_meals').eq('month_year', selectedMonth).eq('admin_id', adminId),
+                            supabase.from('groceries').select('cost').eq('month_year', selectedMonth).eq('admin_id', adminId),
+                            supabase.from('utilities').select('cost').eq('month_year', selectedMonth).eq('admin_id', adminId),
+                            supabase.from('meal_deposits').select('amount, member_id').eq('month_year', selectedMonth).eq('admin_id', adminId),
+                            supabase.from('utility_deposits').select('amount, member_id').eq('month_year', selectedMonth).eq('admin_id', adminId),
+                        ])
+
+                        const groceryTotal = (groceries || []).reduce((s, r) => s + Number(r.cost), 0)
+                        const utilTotal = (utilities || []).reduce((s, r) => s + Number(r.cost), 0)
+                        const totalMeals = (dailyMeals || []).reduce((s, r) => s + r.regular_meals + r.guest_meals, 0)
+                        const totalMealDeps = (mealDeposits || []).reduce((s, d) => s + Number(d.amount), 0)
+                        const mealRate = totalMeals > 0 ? totalMealDeps / totalMeals : 0
+                        const utilPerPerson = eligible.length > 0 ? utilTotal / eligible.length : 0
+
+                        const monthLabel = stats?.monthLabel ?? selectedMonth
+
+                        // Open wa.me links sequentially with a small delay
+                        for (let i = 0; i < eligible.length; i++) {
+                            const m = eligible[i]
+                            const memberMeals = (dailyMeals || []).filter(r => r.member_id === m.id).reduce((s, r) => s + r.regular_meals + r.guest_meals, 0)
+                            const guestMeals = (dailyMeals || []).filter(r => r.member_id === m.id).reduce((s, r) => s + r.guest_meals, 0)
+                            const mealDep = (mealDeposits || []).filter(d => d.member_id === m.id).reduce((s, d) => s + Number(d.amount), 0)
+                            const utilDep = (utilityDeposits || []).filter(d => d.member_id === m.id).reduce((s, d) => s + Number(d.amount), 0)
+                            const mealCost = memberMeals * mealRate
+                            const mealBal = mealDep - mealCost
+                            const utilBal = utilDep - utilPerPerson
+                            const totalBal = mealBal + utilBal
+                            const status = totalBal < -0.01 ? 'Owes' : totalBal > 0.01 ? 'In Credit' : 'Settled'
+
+                            const text = [
+                                `📊 *SuperMeal — ${monthLabel} Statement*`,
+                                ``,
+                                `👤 *${m.name}*`,
+                                `━━━━━━━━━━━━━━━━`,
+                                `🍽 Total Meals: ${memberMeals} (incl. ${guestMeals} guest)`,
+                                `💰 Meal Rate: ${mealRate.toFixed(2)} Tk`,
+                                ``,
+                                `📗 *Meal Fund*`,
+                                `  Deposited: ${mealDep.toFixed(2)} Tk`,
+                                `  Cost: −${mealCost.toFixed(2)} Tk`,
+                                `  Balance: ${mealBal > 0 ? '+' : ''}${mealBal.toFixed(2)} Tk ${mealBal >= 0 ? '✅' : '⚠️'}`,
+                                ``,
+                                `📘 *Utility Fund*`,
+                                `  Deposited: ${utilDep.toFixed(2)} Tk`,
+                                `  Share: −${utilPerPerson.toFixed(2)} Tk`,
+                                `  Balance: ${utilBal > 0 ? '+' : ''}${utilBal.toFixed(2)} Tk ${utilBal >= 0 ? '✅' : '⚠️'}`,
+                                ``,
+                                `━━━━━━━━━━━━━━━━`,
+                                `${totalBal < -0.01 ? '⚠️' : '✅'} *Final: ${status} ${Math.abs(totalBal).toFixed(2)} Tk*`,
+                                ``,
+                                `— SuperMeal by MayazAD`,
+                            ].join('\n')
+
+                            // Clean the phone number (strip spaces, dashes)
+                            const phone = m.whatsapp_number!.replace(/[\s\-()]/g, '')
+                            const url = `https://wa.me/${phone}?text=${encodeURIComponent(text)}`
+                            window.open(url, '_blank')
+                            setWaSentCount(i + 1)
+
+                            // Small delay between opens so the browser doesn't block popups
+                            if (i < eligible.length - 1) {
+                                await new Promise(r => setTimeout(r, 800))
+                            }
+                        }
+
+                        setTimeout(() => {
+                            setIsSendingWA(false)
+                            setWaSentCount(0)
+                        }, 3000)
+                    }}
+                    disabled={isSendingWA}
+                    className="inline-flex items-center gap-2 h-10 px-5 rounded-xl bg-green-600 hover:bg-green-700 text-white text-sm font-bold transition-colors disabled:opacity-50 shadow-sm"
+                >
+                    {isSendingWA ? (
+                        <><Loader2 className="h-4 w-4 animate-spin" /> Opening {waSentCount}/{waTotal}…</>
+                    ) : (
+                        <><MessageCircle className="h-4 w-4" /> Send All Statements ({stats?.monthLabel})</>
+                    )}
+                </button>
             </div>
 
         </div >
