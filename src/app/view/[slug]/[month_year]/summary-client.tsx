@@ -283,7 +283,7 @@ export default function SummaryClient({ slug, messName, monthName, monthYear, br
                     </NextLink>
                     <button
                         onClick={() => setShowMonthPicker(v => !v)}
-                        className={`inline-flex items-center justify-center w-8 h-8 md:w-9 md:h-9 md:ml-1 rounded-full border bg-background hover:bg-muted transition-colors ${showMonthPicker ? 'ring-2 ring-foreground' : ''}`}
+                        className={`inline-flex items-center justify-center px-3 py-1.5 md:px-4 md:py-2 md:ml-1 rounded-full border bg-background hover:bg-muted transition-colors ${showMonthPicker ? 'ring-2 ring-foreground' : ''}`}
                         title="Jump to month"
                     >
                         <Calendar className="h-4 w-4 text-muted-foreground" />
