@@ -237,6 +237,9 @@ export default function MealsPage() {
                         type="date"
                         value={dateFilter}
                         onChange={(e) => setDateFilter(e.target.value)}
+                        onClick={(e) => {
+                            try { e.currentTarget.showPicker() } catch (err) {}
+                        }}
                         className="flex h-10 min-w-[160px] bg-transparent text-sm focus-visible:outline-none"
                     />
                 </div>
